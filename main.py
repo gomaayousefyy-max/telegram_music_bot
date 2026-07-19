@@ -1,20 +1,37 @@
 # ============================================================
 #  music_bot/main.py
-#  النسخة النهائية - PTB (أوامر) + Pyrofork (صوت) + py-tgcalls 2.3.3
-#
-#  المعمارية:
-#    - python-telegram-bot: بياخد الأوامر عبر HTTP getUpdates
-#      (مجرب وشغال 100% على ويندوز)
-#    - Pyrofork user_client: بيدخل المكالمة الصوتية ويشغل الصوت
-#      (مش محتاج يستقبل رسايل - للصوت فقط)
-#    - pytgcalls: الربط مع المكالمات الصوتية
+#  ملف التسجيل الأساسي - بيجمع كل المميزات من music_helpers
 # ============================================================
 
+from telegram import Update
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    filters,
+)
+from config import Config
 
-
+# استيراد كل الدوال والـ Clients من ملف الإضافات
+from music_helpers import (
+    post_init,
+    post_stop,
+    play_command,
+    pause_command,
+    resume_command,
+    skip_command,
+    stop_command,
+    leave_command,
+    queue_command,
+    volume_command,
+    ping_command,
+    help_command,
+    player_callback_handler,
+)
 
 # ============================================================
-# (11) Main entry point
+# Main entry point
 # ============================================================
 def main() -> None:
     application = (
@@ -63,7 +80,7 @@ def main() -> None:
     }
 
     async def arabic_command_router(
-        update: Update, context: ContextTypes.DEFAULT_TYPE
+        update: Update, context
     ) -> None:
         """يوزع الأوامر العربية على الدوال المناسبة."""
         if not update.message or not update.message.text:
