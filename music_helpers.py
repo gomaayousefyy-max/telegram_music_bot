@@ -210,7 +210,7 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
 # (6) YouTube download (yt-dlp)
 # ============================================================
 def _ydl_opts() -> dict:
-    return {
+    opts = {
         "format": Config.YDL_FORMAT,
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
@@ -223,8 +223,13 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        # تم إزالة ratelimit عشان الأغنية الجاية تتحمل بأسرع شكل ممكن وتكون جاهزة (Preload) عشان تشتغل فوراً بدون تعليق
     }
+    
+    # إضافة الكوكيز عشان نتفادى حظر يوتيوب للسيرفرات
+    if os.path.exists("youtube.com_cookies.txt"):
+        opts["cookiefile"] = "youtube.com_cookies.txt"
+        
+    return opts
 
 
 def _download_single(url: str) -> dict:
