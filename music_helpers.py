@@ -194,11 +194,11 @@ opts = {
     "fragment_retries": 3,
     "extractor_args": {"youtube": {"player_client": ["android", "web", "tv"]}},
 }
-    if os.path.exists(cookie_file):
-        opts["cookiefile"] = cookie_file
-        logger.info("✅ YouTube Cookies file loaded successfully.")
-    else:
-        logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
+        if os.path.exists(cookie_file):
+            opts["cookiefile"] = cookie_file
+            logger.info("✅ YouTube Cookies file loaded successfully.")
+        else:
+            logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
     return opts
 
 
