@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from pyrogram import Client
+from pyrogram.errors import AuthKeyDuplicated
 from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
@@ -339,6 +340,14 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     if os.path.getsize(track.file_path) < 10_000:
         raise ValueError(f"الملف فاسد أو فاضي: {track.file_path}")
     
+    # Pre-resolve peer عشان نحل KeyError: ID not found (session cache miss)
+    try:
+        await user_client.resolve_peer(chat_id)
+    except AuthKeyDuplicated:
+        raise
+    except Exception as e:
+        logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
+    
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
     ffmpeg_params = f"{seek_param}-re -nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
@@ -349,15 +358,28 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     )
     try:
         await calls.play(chat_id, stream)
+    except AuthKeyDuplicated:
+        # مفيش فايدة نعمل retry - فيه نسخة تانية شغالة بنفس الـ session
+        logger.error(
+            "AuthKeyDuplicated أثناء التشغيل في chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
+            chat_id,
+        )
+        raise
     except Exception as e:
         logger.warning("فشلت أول محاولة تشغيل (%s)، بننضف الاتصال ونعيد المحاولة...", type(e).__name__)
         try:
             await calls.leave_call(chat_id)
         except Exception:
             pass
-        await asyncio.sleep(2)
-        await calls.play(chat_id, stream)
-
+        await asyncio.sleep(3)
+        try:
+            await calls.play(chat_id, stream)
+        except AuthKeyDuplicated:
+            logger.error(
+                "AuthKeyDuplicated في إعادة المحاولة لـ chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
+                chat_id,
+            )
+            raise
 async def play_next(chat_id: int) -> None:
     async with get_lock(chat_id):
         state = get_state(chat_id)
