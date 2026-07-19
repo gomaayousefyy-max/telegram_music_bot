@@ -215,14 +215,15 @@ def _ydl_opts() -> dict:
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": False,  # تم تعديله لـ False عشان يدعم قوائم التشغيل (Playlists)
+        "noplaylist": False,
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        # منع التعليق: timeout لو الرابط بطيء
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
+        # خدعة لتخطي حظر يوتيوب: جعله يظن أن الطلب قادم من آيفون
+        "extractor_args": {"youtube": {"player_client": ["ios"]}},
     }
     
     # إضافة الكوكيز عشان نتفادى حظر يوتيوب للسيرفرات
