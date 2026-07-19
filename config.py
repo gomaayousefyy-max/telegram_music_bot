@@ -40,13 +40,18 @@ class Config:
     # (3) إعدادات التشغيل
     # ----------------------------------------------------------
     # جودة التحميل من يوتيوب
-    # bestaudio/best تضمن سحب الصوت من أي فيديو حتى لو مفيش مسار صوت مستقل
-    YDL_FORMAT: str = os.getenv("YDL_FORMAT", "bestaudio/best")
+    # "bestaudio/best" = أي صوت متاح بأعلى جودة (بدون تقييد بصيغة معينة)
+    # ⚠️ مفيش env var YDL_FORMAT في Railway عشان ميلغي الكود ده
+    YDL_FORMAT: str = os.getenv(
+        "YDL_FORMAT", "bestaudio/best"
+    )
+
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))
 
-    # تم إلغاء قيد المدة نهائياً عشان يشغل أي حاجة (سور، محاضرات، قوائم طويلة)
+    # أقصى مدة للأغنية الواحدة بالثواني (99999 = بدون قيد - يشغل سور البقرة والمحاضرات)
     MAX_DURATION: int = int(os.getenv("MAX_DURATION", "99999"))
+
     # أقصى عدد أغانين في الطابور
     MAX_QUEUE: int = int(os.getenv("MAX_QUEUE", "30"))
 
@@ -61,10 +66,6 @@ class Config:
     # ----------------------------------------------------------
     BOT_NAME: str = os.getenv("BOT_NAME", "🎵 شيخ الجروب - بوت الأغاني")
     BOT_VERSION: str = "1.0.0"
-    
-    # معرف الملصق المتحرك (Sticker ID) اللي هيتبعت قبل رسالة الأغنية
-    # هتجيب الـ ID ده من تيليجرام وتحطه في متغير البيانات NOW_PLAYING_STICKER
-    NOW_PLAYING_STICKER: str = os.getenv("NOW_PLAYING_STICKER", "")
 
     # ----------------------------------------------------------
     # (5) صلاحيات الأدمن (معرفات تيليجرام مفصولة بفواصل)
