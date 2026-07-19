@@ -210,6 +210,7 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
 # (6) YouTube download (yt-dlp)
 # ============================================================
 def _ydl_opts() -> dict:
+    cookie_file = "youtube.com_cookies.txt"
     opts = {
         "format": Config.YDL_FORMAT,
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
@@ -222,15 +223,18 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
+        # خدعة عميل الأندرويد بتعدي حظر البوتات بشكل أقوى من الآيفون
+        "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
     }
     
-    # إضافة الكوكيز عشان نتفادى حظر يوتيوب للسيرفرات
-    # الكوكيز بيسمح لنا بتحميل أي صيغة بدون الحاجة لخدعة الآيفون
-    if os.path.exists("youtube.com_cookies.txt"):
-        opts["cookiefile"] = "youtube.com_cookies.txt"
+    # التأكد من وجود ملف الكوكيز وطباعة رسالة في السجل للتأكيد
+    if os.path.exists(cookie_file):
+        opts["cookiefile"] = cookie_file
+        logger.info("✅ YouTube Cookies file loaded successfully.")
+    else:
+        logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
         
     return opts
-
 
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
