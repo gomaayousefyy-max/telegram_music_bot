@@ -182,7 +182,7 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
 def _ydl_opts() -> dict:
     cookie_file = "youtube.com_cookies.txt"
     opts = {
-        "format": "bestaudio/best",
+        "format": Config.YDL_FORMAT,
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
@@ -191,8 +191,17 @@ def _ydl_opts() -> dict:
         "geo_bypass": True,
         "extract_flat": False,
         "socket_timeout": 30,
-        "retries": 3,
-        "fragment_retries": 3,
+        "retries": 10,
+        "fragment_retries": 10,
+        "continuedl": True,
+        "concurrent_fragment_downloads": 4,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "opus",
+                "preferredquality": "192",
+            }
+        ],
         "extractor_args": {
             "youtube": {
                 "player_client": ["web", "tv", "android"],
@@ -224,15 +233,26 @@ def _download_single(url: str) -> dict:
             filename = ydl.prepare_filename(info)
 
     if not os.path.exists(filename):
+        
         base, _ = os.path.splitext(filename)
         for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
             candidate = base + ext
             if os.path.exists(candidate):
                 filename = candidate
                 break
+duration = int(info.get("duration") or 0)
+    if os.path.exists(filename):
+        size_mb = os.path.getsize(filename) / (1024 * 1024)
+        # فحص تقريبي: أقل من 0.05 ميجا لكل دقيقة معناه الملف ناقص/فاسد
+        expected_min_mb = (duration / 60) * 0.05
+        if duration > 60 and size_mb < expected_min_mb:
+            logger.warning(
+                "⚠️ الملف ناقص محتمل: %s (%.2f MB لمدة %s ثانية)",
+                filename, size_mb, duration,
+            )
     return {
         "title": info.get("title", "Unknown"),
-        "duration": int(info.get("duration") or 0),
+        "duration": duration,
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
@@ -290,7 +310,7 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         raise ValueError(f"الملف فاسد أو فاضي: {track.file_path}")
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-re -nostdin -threads 0"
+    ffmpeg_params = f"{seek_param}-re -nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
     stream = MediaStream(
         track.file_path,
