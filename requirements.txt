@@ -1,0 +1,24 @@
+# ============================================================
+#  music_bot - النسخة النهائية
+#  Python: 3.10 - 3.11
+# ============================================================
+
+# --- الأوامر (Bot API HTTP - مجرب وشغال على ويندوز) ---
+python-telegram-bot==21.6
+
+# --- عميل تيليجرام للصوت (pyrofork فيه الاستثناءات الناقصة) ---
+pyrofork==2.3.69
+TgCrypto==1.2.5
+
+# --- pytgcalls من GitHub (النسخة النهائية فيها PyTgCalls class) ---
+py-tgcalls @ git+https://github.com/pytgcalls/pytgcalls.git
+
+# --- صوت ---
+PyNaCl==1.5.0
+
+# --- YouTube ---
+yt-dlp>=2024.8.6
+
+# --- أدوات ---
+python-dotenv==1.0.1
+aiofiles==23.2.1
