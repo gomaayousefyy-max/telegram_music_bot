@@ -1,6 +1,6 @@
-# nixpacks.toml
-[build]
-install = ["ffmpeg"]
+[phases.setup]
+# aptPkgs مش بيشتغل هنا، بنستخدم nixPkgs لتثبيت برامج النظام على Railway
+nixPkgs = ["ffmpeg", "ffmpeg-full"]
 
-[build.cmd]
-start = "python main.py"
+[start]
+cmd = "python main.py"
