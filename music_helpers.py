@@ -323,30 +323,7 @@ def search_and_download(query: str) -> list[dict]:
                 last_error = e2
                 continue
 
-    raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
-
-    if isinstance(info, dict) and "entries" in info:
-        entries = [e for e in info["entries"] if e is not None]
-    else:
-        entries = [info]
-
-    if not entries:
-        raise ValueError("مفيش نتائج لبحثك.")
-
-    results = []
-    for i, entry in enumerate(entries):
-        file_path = None
-        if i == 0:
-            downloaded = _download_single(entry.get("webpage_url") or entry.get("original_url"))
-            file_path = downloaded["file_path"]
-
-        results.append({
-            "title": entry.get("title", "Unknown"),
-            "duration": int(entry.get("duration") or 0),
-            "url": entry.get("webpage_url") or entry.get("original_url", ""),
-            "file_path": file_path,
-        })
-    return results
+raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
 
 async def download_async(query: str) -> list[dict]:
     loop = asyncio.get_running_loop()
