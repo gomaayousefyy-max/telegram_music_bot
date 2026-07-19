@@ -276,22 +276,54 @@ def _download_single(url: str) -> dict:
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
+
+
+def _finish_search(info: dict) -> list[dict]:
+    if isinstance(info, dict) and "entries" in info:
+        entries = [e for e in info["entries"] if e is not None]
+    else:
+        entries = [info]
+
+    results = []
+    for entry in entries:
+        url = entry.get("webpage_url") or entry.get("url") or entry.get("original_url")
+        downloaded = _download_single(url)
+        results.append(downloaded)
+    return results
+
     
 def search_and_download(query: str) -> list[dict]:
     if is_url(query):
         target = query.strip()
+        sources = [target]
     else:
-        target = f"ytsearch1:{query.strip()}"
-    
-    try:
-        with YoutubeDL(_ydl_opts()) as ydl:
-            info = ydl.extract_info(target, download=False)
-    except DownloadError as e:
-        logger.warning(f"Search failed with primary format: {e}")
-        fallback_opts = _ydl_opts().copy()
-        fallback_opts['format'] = 'best'
-        with YoutubeDL(fallback_opts) as ydl:
-            info = ydl.extract_info(target, download=False)
+        # نحاول يوتيوب الأول، ولو فشل نجرب SoundCloud كبديل
+        sources = [f"ytsearch1:{query.strip()}", f"scsearch1:{query.strip()}"]
+
+    last_error = None
+    for target in sources:
+        try:
+            with YoutubeDL(_ydl_opts()) as ydl:
+                info = ydl.extract_info(target, download=False)
+            if info:
+                if target.startswith("scsearch"):
+                    logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s", query)
+                return _finish_search(info)
+        except DownloadError as e:
+            last_error = e
+            logger.warning(f"Search failed on source '{target[:12]}...': {e}")
+            try:
+                fallback_opts = _ydl_opts().copy()
+                fallback_opts['format'] = 'best'
+                with YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(target, download=False)
+                if info:
+                    return _finish_search(info)
+            except DownloadError as e2:
+                last_error = e2
+                continue
+
+    raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
 
     if isinstance(info, dict) and "entries" in info:
         entries = [e for e in info["entries"] if e is not None]
