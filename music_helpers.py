@@ -551,7 +551,17 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             state.is_paused = False
             state.queue.insert(0, track)
         logger.exception("Error in play_command for chat %s", chat_id)
-        if "CHAT_ADMIN_REQUIRED" in str(e) or "ChatAdminRequired" in str(e):
+        err_str = str(e)
+        if "AUTH_KEY_DUPLICATED" in err_str or "AuthKeyDuplicated" in err_str:
+            await status.edit_text(
+                "🚫 الجلسة (SESSION_STRING) مستخدمة في أكتر من مكان في نفس الوقت.\n\n"
+                "الأسباب المحتملة:\n"
+                "  1) فيه Deployment تاني شغال على Railway بنفس الجلسة (امسحه وسيب واحد بس Active).\n"
+                "  2) Replicas أكتر من 1 في Settings (خليها 1).\n"
+                "  3) شغال نسخة محلية على جهازك بنفس SESSION_STRING وقت ما Railway شغال.\n\n"
+                "انتظر دقيقة وبعدين جرب /play تاني."
+            )
+        elif "CHAT_ADMIN_REQUIRED" in err_str or "ChatAdminRequired" in err_str:
             await status.edit_text(
                 "🚫 الحساب اللي بيشغل الصوت لازم يبقى أدمن في الجروب.\n"
                 "روح إعدادات الجروب → الأعضاء → حط الحساب أدمن وفعّل صلاحية "
@@ -559,7 +569,6 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             )
         else:
             await status.edit_text(f"❌ حصل خطأ: {type(e).__name__}\nجرب /play تاني، ولو استمرت المشكلة قوللي.")
-
 async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
