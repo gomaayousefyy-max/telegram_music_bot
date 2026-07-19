@@ -196,6 +196,7 @@ def _ydl_opts() -> dict:
         "extractor_args": {"youtube": {
             "player_client": ["tv", "web", "android"],
             "formats": ["missing_pot"],
+            "getpot_bgutil_baseurl": [os.getenv("POT_PROVIDER_URL", "http://pot-provider.railway.internal:4416")],
         }},
     }
     if os.path.exists(cookie_file):
