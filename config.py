@@ -40,8 +40,8 @@ class Config:
     # (3) إعدادات التشغيل
     # ----------------------------------------------------------
     # جودة التحميل من يوتيوب
-    # استخدام bestaudio* بيجبر yt-dlp يجيب أي صوت متاح ويعمله دمج لو احتاج
-    YDL_FORMAT: str = os.getenv("YDL_FORMAT", "bestaudio*")
+    # bestaudio/best تضمن سحب الصوت من أي فيديو حتى لو مفيش مسار صوت مستقل
+    YDL_FORMAT: str = os.getenv("YDL_FORMAT", "bestaudio/best")
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))
 
