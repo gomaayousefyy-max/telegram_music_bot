@@ -204,7 +204,7 @@ def _ydl_opts() -> dict:
         ],
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "tv", "android"],
+                "player_client": ["tv", "android", "web"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": [os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416")],
@@ -436,7 +436,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
         
     user_name = fmt_user(update.effective_user)
-    status = await update.message.reply_text(f"🔍 بدور على: {query} ...")
+    status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
     
     try:
         info_list = await download_async(query)
