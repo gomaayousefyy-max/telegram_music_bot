@@ -91,6 +91,10 @@ class ChatState:
         self.current = None
         self.is_paused = False
         self.is_playing = False
+        # تصفير متغيرات الأزرار والوقت عشان البوت يبدأ من جديد نضيف
+        self.now_playing_message_id = None
+        self.playback_start_time = 0.0
+        self.elapsed_time_before_pause = 0.0
 
 
 _states: dict[int, ChatState] = defaultdict(ChatState)
@@ -769,7 +773,8 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             state.is_paused = False
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
         else:
-            await query.answer("⚠️ وصلنا لنهاية الأغنية.", show_alert=True)
+            # تم تعديلها لتجنب خطأ Telegram BadRequest (لأن query.answer اتعملت فوق)
+            await query.edit_message_text("⚠️ وصلنا لنهاية الأغنية.")
 
     # زرار التأخير -10s
     elif data == "player_seek_back":
