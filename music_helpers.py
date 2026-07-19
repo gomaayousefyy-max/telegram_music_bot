@@ -240,7 +240,8 @@ def _download_single(url: str) -> dict:
             if os.path.exists(candidate):
                 filename = candidate
                 break
-duration = int(info.get("duration") or 0)
+    duration = int(info.get("duration") or 0)
+
     if os.path.exists(filename):
         size_mb = os.path.getsize(filename) / (1024 * 1024)
         # فحص تقريبي: أقل من 0.05 ميجا لكل دقيقة معناه الملف ناقص/فاسد
