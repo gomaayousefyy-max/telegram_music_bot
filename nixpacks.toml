@@ -1,12 +1,14 @@
 [phases.setup]
 # aptPkgs مش بيشتغل هنا، بنستخدم nixPkgs لتثبيت برامج النظام على Railway
-nixPkgs = ["ffmpeg", "ffmpeg-full"]
+nixPkgs = ["ffmpeg", "ffmpeg-full", "nodejs_20", "yarn"]
 
 [phases.install]
 cmds = [
     "pip install -r requirements.txt",
-    "pip install --upgrade --force-reinstall git+https://github.com/yt-dlp/yt-dlp.git"
+    "pip install --upgrade --force-reinstall git+https://github.com/yt-dlp/yt-dlp.git",
+    "git clone --depth 1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /app/pot-provider",
+    "cd /app/pot-provider/server && yarn install --frozen-lockfile && npx tsc"
 ]
 
 [start]
-cmd = "python main.py"
+cmd = "bash start.sh"
