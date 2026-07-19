@@ -17,8 +17,7 @@ py-tgcalls @ git+https://github.com/pytgcalls/pytgcalls.git
 PyNaCl==1.5.0
 
 # --- YouTube ---
-yt-dlp>=2024.8.6
-
+yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git
 # --- أدوات ---
 python-dotenv==1.0.1
 aiofiles==23.2.1
