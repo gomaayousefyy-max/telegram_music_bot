@@ -1,0 +1,6 @@
+# nixpacks.toml
+[build]
+install = ["ffmpeg"]
+
+[build.cmd]
+start = "python main.py"
