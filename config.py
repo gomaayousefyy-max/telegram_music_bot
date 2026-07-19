@@ -48,9 +48,8 @@ class Config:
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))
 
-    # أقصى مدة للأغنية الواحدة بالثواني (600 = 10 دقايق)
-    MAX_DURATION: int = int(os.getenv("MAX_DURATION", "600"))
-
+    # تم إلغاء قيد المدة نهائياً عشان يشغل أي حاجة (سور، محاضرات، قوائم طويلة)
+    MAX_DURATION: int = int(os.getenv("MAX_DURATION", "99999"))
     # أقصى عدد أغانين في الطابور
     MAX_QUEUE: int = int(os.getenv("MAX_QUEUE", "30"))
 
