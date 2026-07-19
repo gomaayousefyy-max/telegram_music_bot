@@ -28,6 +28,7 @@ from music_helpers import (
     ping_command,
     help_command,
     player_callback_handler,
+    global_error_handler,
 )
 
 # ============================================================
@@ -41,6 +42,8 @@ def main() -> None:
         .post_stop(post_stop)
         .build()
     )
+    
+    application.add_error_handler(global_error_handler)
 
     # تسجيل الأوامر (عربي + إنجليزي)
 
