@@ -53,7 +53,7 @@ class Track:
     title: str
     duration: int
     url: str
-    file_path: str
+    file_path: Optional[str]  # بقى Optional عشان نقدر نضيف القوائم قبل ما نحملها
     requester_id: int
     requester_name: str
 
@@ -215,7 +215,7 @@ def _ydl_opts() -> dict:
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": True,
+        "noplaylist": False,  # تم تعديله لـ False عشان يدعم قوائم التشغيل (Playlists)
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
@@ -227,22 +227,10 @@ def _ydl_opts() -> dict:
     }
 
 
-def search_and_download(query: str) -> dict:
-    """دالة sync: بتبحث في يوتيوب وتحمّل أول نتيجة."""
-    if is_url(query):
-        target = query.strip()
-    else:
-        target = f"ytsearch1:{query.strip()}"
-
+def _download_single(url: str) -> dict:
+    """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
     with YoutubeDL(_ydl_opts()) as ydl:
-        info = ydl.extract_info(target, download=True)
-
-        if isinstance(info, dict) and "entries" in info:
-            entries = [e for e in info["entries"] if e is not None]
-            if not entries:
-                raise ValueError("مفيش نتائج لبحثك.")
-            info = entries[0]
-
+        info = ydl.extract_info(url, download=True)
         filename = ydl.prepare_filename(info)
         if not os.path.exists(filename):
             base, _ = os.path.splitext(filename)
@@ -251,16 +239,51 @@ def search_and_download(query: str) -> dict:
                 if os.path.exists(candidate):
                     filename = candidate
                     break
+        return {
+            "title": info.get("title", "Unknown"),
+            "duration": int(info.get("duration") or 0),
+            "url": info.get("webpage_url") or info.get("original_url", ""),
+            "file_path": filename,
+        }
 
-    return {
-        "title": info.get("title", "Unknown"),
-        "duration": int(info.get("duration") or 0),
-        "url": info.get("webpage_url") or info.get("original_url", ""),
-        "file_path": filename,
-    }
+
+def search_and_download(query: str) -> list[dict]:
+    """دالة sync: بتبحث في يوتيوب وتجيب النتائج (تحمل أول واحدة بس فوراً)."""
+    if is_url(query):
+        target = query.strip()
+    else:
+        target = f"ytsearch1:{query.strip()}"
+
+    with YoutubeDL(_ydl_opts()) as ydl:
+        # download=False عشان ميسمش السيرفر يحمل قائمة كاملة مرة واحدة
+        info = ydl.extract_info(target, download=False)
+
+        if isinstance(info, dict) and "entries" in info:
+            entries = [e for e in info["entries"] if e is not None]
+        else:
+            entries = [info]
+
+        if not entries:
+            raise ValueError("مفيش نتائج لبحثك.")
+
+        results = []
+        for i, entry in enumerate(entries):
+            file_path = None
+            # تحميل أول أغنية فقط فوراً عشان تشتغل على طول
+            if i == 0:
+                downloaded = _download_single(entry.get("webpage_url") or entry.get("original_url"))
+                file_path = downloaded["file_path"]
+
+            results.append({
+                "title": entry.get("title", "Unknown"),
+                "duration": int(entry.get("duration") or 0),
+                "url": entry.get("webpage_url") or entry.get("original_url", ""),
+                "file_path": file_path,
+            })
+        return results
 
 
-async def download_async(query: str) -> dict:
+async def download_async(query: str) -> list[dict]:
     """غلاف async حول yt-dlp (لأنه sync)."""
     loop = asyncio.get_running_loop()
     # استخدام executor مخصص عشان ميزحمش باقي العمليات
@@ -331,6 +354,13 @@ async def play_next(chat_id: int) -> None:
 
     # التشغيل الفعلي بره القفل
     try:
+        # لو الأغنية من قائمة تشغيل (file_path = None) نحملها الأول
+        if not track.file_path or not os.path.exists(track.file_path):
+            await bot_send(chat_id, f"⏳ جاري تحميل: {track.title} ...")
+            loop = asyncio.get_running_loop()
+            downloaded = await loop.run_in_executor(_download_executor, _download_single, track.url)
+            track.file_path = downloaded["file_path"]
+        
         await _start_playback(chat_id, track)
         
         # إرسال الملصق المتحرك إذا كان موجوداً
@@ -441,62 +471,52 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     status = await update.message.reply_text(f"🔍 بدور على: {query} ...")
 
     try:
-        info = await download_async(query)
+        info_list = await download_async(query)
     except Exception as e:
         await status.edit_text(
             f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}"
         )
         return
 
-    # فحص المدة
-    if info["duration"] > Config.MAX_DURATION:
-        try:
-            os.remove(info["file_path"])
-        except OSError:
-            pass
-        await status.edit_text(
-            f"❌ الأغنية دي مدتها {fmt_duration(info['duration'])} "
-            f"وأكبر من الحد المسموح ({fmt_duration(Config.MAX_DURATION)})."
-        )
-        return
+    # تم إلغاء فحص المدة نهائياً عشان يشغل أي حاجة (سور، محاضرات)
 
-    track = Track(
-        title=info["title"],
-        duration=info["duration"],
-        url=info["url"],
-        file_path=info["file_path"],
-        requester_id=update.effective_user.id,
-        requester_name=user_name,
-    )
+    tracks_to_add = []
+    for info in info_list:
+        tracks_to_add.append(
+            Track(
+                title=info["title"],
+                duration=info["duration"],
+                url=info["url"],
+                file_path=info["file_path"],
+                requester_id=update.effective_user.id,
+                requester_name=user_name,
+            )
+        )
 
     async with get_lock(chat_id):
         state = get_state(chat_id)
 
-        # لو فيه حاجة شغالة أو متوقفة -> نضيف للطابور
+        # لو فيه حاجة شغالة -> نضيف كل القائمة للطابور
         if state.is_playing or state.is_paused:
-            if len(state.queue) >= Config.MAX_QUEUE:
+            if len(state.queue) + len(tracks_to_add) > Config.MAX_QUEUE:
                 await status.edit_text(
                     f"❌ الطابور مليان ({Config.MAX_QUEUE} أغنية). استنى شوية."
                 )
-                try:
-                    os.remove(track.file_path)
-                except OSError:
-                    pass
                 return
-            state.queue.append(track)
-            position = len(state.queue)
+            state.queue.extend(tracks_to_add)
             await status.edit_text(
-                f"➕ اتضافت للطابور (المركز {position}):\n"
-                f"🎵 {track.title}\n"
-                f"⏱️ {fmt_duration(track.duration)}"
+                f"➕ اتضافت {len(tracks_to_add)} أغنية للطابور."
             )
             return
 
-        # مفيش حاجة شغالة -> نشغلها على طول
-        state.current = track
+        # مفيش حاجة شغالة -> نضيف الباقي للطابور ونشغل أول واحدة
+        state.current = tracks_to_add[0]
         state.is_playing = True
         state.is_paused = False
+        if len(tracks_to_add) > 1:
+            state.queue.extend(tracks_to_add[1:])
 
+    track = state.current
     # التشغيل الفعلي (بره القفل)
     try:
         await _start_playback(chat_id, track)
