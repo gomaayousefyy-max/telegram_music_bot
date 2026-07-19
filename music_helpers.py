@@ -805,7 +805,7 @@ async def post_init(application: Application) -> None:
     logger.info("  Starting %s v%s", Config.BOT_NAME, Config.BOT_VERSION)
     logger.info("==========================================")
     
-    max_retries = 5
+    max_retries = 2
     for attempt in range(1, max_retries + 1):
         try:
             await user_client.start()
@@ -813,14 +813,27 @@ async def post_init(application: Application) -> None:
             break
         except Exception as e:
             if "AUTH_KEY_DUPLICATED" in str(e) or "AuthKeyDuplicated" in str(e):
-                wait_time = attempt * 15  # بيزود المهلة كل محاولة: 15, 30, 45, 60, 75 ثانية
+                wait_time = attempt * 20
                 logger.warning(
-                    "⚠️ الجلسة لسه شغالة في مكان تاني (محاولة %s/%s). هستنى %s ثانية عشان تليجرام يقفلها من جهته...",
+                    "⚠️ الجلسة لسه شغالة في مكان تاني (محاولة %s/%s). هستنى %s ثانية...",
                     attempt, max_retries, wait_time,
                 )
                 if attempt == max_retries:
-                    logger.error("❌ فشلت كل المحاولات. لازم تتحقق من إن مفيش نسخة تانية شغالة بنفس SESSION_STRING.")
+                    logger.error("=" * 60)
+                    logger.error("❌ فشل تشغيل user_client بعد %s محاولات.", max_retries)
+                    logger.error("❌ السبب: فيه نسخة تانية من البوت شغالة بنفس SESSION_STRING.")
+                    logger.error("❌ افعل الآتي:")
+                    logger.error("   1) Railway → Settings → Replicas = 1")
+                    logger.error("   2) Railway → Deployments → امسح أي Deployment قديم")
+                    logger.error("   3) اتأكد إن مفيش بوت شغّال على جهازك بنفس الجلسة")
+                    logger.error("   4) لو ولّدت SESSION_STRING من أداة online → ولّدها من سكريبت محلي بدلها")
+                    logger.error("   5) وقّف البوت، استنى 5 دقايق، وشغّله تاني")
+                    logger.error("=" * 60)
                     raise
+                try:
+                    await user_client.stop()
+                except Exception:
+                    pass
                 await asyncio.sleep(wait_time)
             else:
                 raise
