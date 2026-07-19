@@ -193,7 +193,10 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        "extractor_args": {"youtube": {"player_client": ["android", "web", "tv"]}},
+        "extractor_args": {"youtube": {
+            "player_client": ["tv", "web", "android"],
+            "formats": ["missing_pot"],
+        }},
     }
     if os.path.exists(cookie_file):
         opts["cookiefile"] = cookie_file
