@@ -201,9 +201,7 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        # حد أقصى لسرعة التحميل عشان مياخدش كل الباندويدث
-        "ratelimit": 5_000_000,  # 5 MB/s
-    }
+        # تم إزالة ratelimit عشان الأغنية الجاية تتحمل بأسرع شكل ممكن وتكون جاهزة (Preload) عشان تشتغل فوراً بدون تعليق
 
 
 def search_and_download(query: str) -> dict:
@@ -260,9 +258,10 @@ async def _start_playback(chat_id: int, track: Track) -> None:
     stream = MediaStream(
         track.file_path,
         audio_parameters=AudioQuality.STUDIO,
+        # إضافة معاملات FFmpeg لتحسين الـ Buffering ومنع التقطيع
+        ffmpeg_parameters="-re -nostdin -threads 0"
     )
     await calls.play(chat_id, stream)
-
 
 async def _preload_track(track: Track) -> None:
     """يحمّل ملف الأغنية في الخلفية قبل ما دورها يجي."""
