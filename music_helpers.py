@@ -180,20 +180,20 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
 # ============================================================
 def _ydl_opts() -> dict:
     cookie_file = "youtube.com_cookies.txt"
-    opts = {
-        "format": "bestaudio/best",
-        "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": False,
-        "nocheckcertificate": True,
-        "geo_bypass": True,
-        "extract_flat": False,
-        "socket_timeout": 30,
-        "retries": 3,
-        "fragment_retries": 3,
-        "extractor_args": {"youtube": {"player_client": ["android", "web", "tv"]}},
-    }
+opts = {
+    "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+    "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
+    "quiet": True,
+    "no_warnings": True,
+    "noplaylist": False,
+    "nocheckcertificate": True,
+    "geo_bypass": True,
+    "extract_flat": False,
+    "socket_timeout": 30,
+    "retries": 3,
+    "fragment_retries": 3,
+    "extractor_args": {"youtube": {"player_client": ["android", "web", "tv"]}},
+}
     if os.path.exists(cookie_file):
         opts["cookiefile"] = cookie_file
         logger.info("✅ YouTube Cookies file loaded successfully.")
