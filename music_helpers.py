@@ -105,10 +105,6 @@ _download_executor = concurrent.futures.ThreadPoolExecutor(
     max_workers=3, thread_name_prefix="ytdl"
 )
 
-# Executor مخصص لتحميل الأغانيات عشان ميزحمش باقي البوت
-_download_executor = concurrent.futures.ThreadPoolExecutor(
-    max_workers=3, thread_name_prefix="ytdl"
-)
 
 # مرجع عام للبوت عشان نقدر نبعت رسايل من خارج الـ handlers
 _bot_ref = None
@@ -212,7 +208,7 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
 def _ydl_opts() -> dict:
     cookie_file = "youtube.com_cookies.txt"
     opts = {
-        "format": Config.YDL_FORMAT,
+        "format": "bestaudio[ext=m4a]/bestaudio/best",
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
@@ -223,7 +219,6 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        # خدعة عميل الأندرويد بتعدي حظر البوتات بشكل أقوى من الآيفون
         "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
     }
     
@@ -255,7 +250,6 @@ def _download_single(url: str) -> dict:
             "file_path": filename,
         }
 
-
 def search_and_download(query: str) -> list[dict]:
     """دالة sync: بتبحث في يوتيوب وتجيب النتائج (تحمل أول واحدة بس فوراً)."""
     if is_url(query):
@@ -283,12 +277,12 @@ def search_and_download(query: str) -> list[dict]:
                 downloaded = _download_single(entry.get("webpage_url") or entry.get("original_url"))
                 file_path = downloaded["file_path"]
 
-            results.append({
-                "title": entry.get("title", "Unknown"),
-                "duration": int(entry.get("duration") or 0),
-                "url": entry.get("webpage_url") or entry.get("original_url", ""),
-                "file_path": file_path,
-            })
+        results.append({
+            "title": entry.get("title", "Unknown"),
+            "duration": int(entry.get("duration") or 0),
+            "url": entry.get("webpage_url") or entry.get("original_url", ""),
+            "file_path": file_path,
+        })
         return results
 
 
