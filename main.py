@@ -231,6 +231,7 @@ def _ydl_opts() -> dict:
         "retries": 3,
         "fragment_retries": 3,
         # تم إزالة ratelimit عشان الأغنية الجاية تتحمل بأسرع شكل ممكن وتكون جاهزة (Preload) عشان تشتغل فوراً بدون تعليق
+    }
 
 
 def search_and_download(query: str) -> dict:
