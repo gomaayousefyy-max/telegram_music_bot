@@ -507,8 +507,20 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             state.queue.insert(0, track)
         await status.edit_text("⚠️ مفيش مكالمة صوتية شغالة في الجروب.\nافتح Voice Chat في الجروب الأول وبعدين اكتب /play تاني.")
     except Exception as e:
+        async with get_lock(chat_id):
+            state.current = None
+            state.is_playing = False
+            state.is_paused = False
+            state.queue.insert(0, track)
         logger.exception("Error in play_command for chat %s", chat_id)
-        await status.edit_text(f"❌ حصل خطأ: {type(e).__name__}")
+        if "CHAT_ADMIN_REQUIRED" in str(e) or "ChatAdminRequired" in str(e):
+            await status.edit_text(
+                "🚫 الحساب اللي بيشغل الصوت لازم يبقى أدمن في الجروب.\n"
+                "روح إعدادات الجروب → الأعضاء → حط الحساب أدمن وفعّل صلاحية "
+                "\"إدارة المكالمات الصوتية\"، وبعدين اكتب /play تاني."
+            )
+        else:
+            await status.edit_text(f"❌ حصل خطأ: {type(e).__name__}\nجرب /play تاني، ولو استمرت المشكلة قوللي.")
 
 async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
@@ -765,3 +777,17 @@ async def post_stop(application: Application) -> None:
         pass
     _download_executor.shutdown(wait=False)
     logger.info("Bot stopped.")
+
+
+
+async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """يمسك أي خطأ مش متوقع في أي مكان في البوت، عشان البوت ميوقفش أبداً."""
+    logger.error("Unhandled exception: %s", context.error, exc_info=context.error)
+    try:
+        if isinstance(update, Update) and update.effective_chat:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="⚠️ حصلت مشكلة غير متوقعة، بس البوت لسه شغال. جرب تاني.",
+            )
+    except Exception:
+        pass
