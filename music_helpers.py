@@ -220,6 +220,25 @@ def _ydl_opts() -> dict:
 
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
+    # فحص سريع: استخرج الـ ID بس من غير تحميل، وشوف لو الملف موجود كاش
+    try:
+        with YoutubeDL({**_ydl_opts(), "skip_download": True}) as ydl_probe:
+            probe_info = ydl_probe.extract_info(url, download=False)
+        video_id = probe_info.get("id")
+        if video_id:
+            for ext in (".opus", ".m4a", ".webm", ".mp3", ".mp4", ".mkv"):
+                cached_path = os.path.join(Config.DOWNLOAD_DIR, f"{video_id}{ext}")
+                if os.path.exists(cached_path) and os.path.getsize(cached_path) > 10_000:
+                    logger.info("⚡ استخدام نسخة مخزنة (كاش) بدل التحميل: %s", cached_path)
+                    return {
+                        "title": probe_info.get("title", "Unknown"),
+                        "duration": int(probe_info.get("duration") or 0),
+                        "url": probe_info.get("webpage_url") or probe_info.get("original_url", ""),
+                        "file_path": cached_path,
+                    }
+    except Exception:
+        pass  # لو الفحص فشل، كمل عادي بالتحميل الطبيعي
+
     try:
         with YoutubeDL(_ydl_opts()) as ydl:
             info = ydl.extract_info(url, download=True)
