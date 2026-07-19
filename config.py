@@ -40,10 +40,8 @@ class Config:
     # (3) إعدادات التشغيل
     # ----------------------------------------------------------
     # جودة التحميل من يوتيوب
-    # "bestaudio[ext=m4a]/bestaudio/best" = أعلى جودة m4a متاحة
-    YDL_FORMAT: str = os.getenv(
-        "YDL_FORMAT", "bestaudio[ext=m4a]/bestaudio/best"
-    )
+    # تم تعديلها عشان تقبل أي صيغة صوت متاحة بدون قيود عشان منواجهش مشكلة Format not available
+    YDL_FORMAT: str = os.getenv("YDL_FORMAT", "bestaudio/best")
 
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))
