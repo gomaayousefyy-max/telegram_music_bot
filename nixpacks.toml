@@ -1,6 +1,0 @@
-[phases.setup]
-# aptPkgs مش بيشتغل هنا، بنستخدم nixPkgs لتثبيت برامج النظام على Railway
-nixPkgs = ["ffmpeg", "ffmpeg-full"]
-
-[start]
-cmd = "python main.py"
