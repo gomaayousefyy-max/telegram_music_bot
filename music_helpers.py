@@ -232,7 +232,7 @@ def _download_single(url: str) -> dict:
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
-
+    
 def search_and_download(query: str) -> list[dict]:
     if is_url(query):
         target = query.strip()
