@@ -337,7 +337,16 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         audio_parameters=AudioQuality.STUDIO,
         ffmpeg_parameters=ffmpeg_params
     )
-    await calls.play(chat_id, stream)
+    try:
+        await calls.play(chat_id, stream)
+    except Exception as e:
+        logger.warning("فشلت أول محاولة تشغيل (%s)، بننضف الاتصال ونعيد المحاولة...", type(e).__name__)
+        try:
+            await calls.leave_call(chat_id)
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+        await calls.play(chat_id, stream)
 
 async def play_next(chat_id: int) -> None:
     async with get_lock(chat_id):
