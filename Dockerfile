@@ -10,16 +10,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     curl \
+    unzip \
+    ca-certificates \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# تثبيت Deno - مطلوب من yt-dlp لفك تشفير سيغنتشر يوتيوب (nsig/EJS)
+ENV DENO_INSTALL=/usr/local
+RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y
 
 WORKDIR /app
 
 # تثبيت مكتبات بايثون
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir --upgrade --force-reinstall git+https://github.com/yt-dlp/yt-dlp.git
+    && pip install --no-cache-dir --upgrade --force-reinstall git+https://github.com/yt-dlp/yt-dlp.git \
+    && pip install --no-cache-dir --upgrade yt-dlp-ejs
 
 # تجهيز سيرفر PO Token (Node.js)
 RUN git clone --depth 1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /app/pot-provider \
