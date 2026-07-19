@@ -276,19 +276,22 @@ async def download_async(query: str) -> dict:
 # ============================================================
 # (7) Playback control
 # ============================================================
-async def _start_playback(chat_id: int, track: Track) -> None:
-    """يشغّل الأغنية فعلياً في المكالمة الصوتية."""
+async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> None:
+    """يشغّل الأغنية فعلياً في المكالمة الصوتية مع دعم التقديم (Seek)."""
     # فحص إن الملف موجود ومش فاضي قبل التشغيل
     if not os.path.exists(track.file_path):
         raise FileNotFoundError(f"الملف مش موجود: {track.file_path}")
     if os.path.getsize(track.file_path) < 10_000:  # أقل من 10KB = غالباً فاسد
         raise ValueError(f"الملف فاسد أو فاضي: {track.file_path}")
 
+    # إعداد FFmpeg: إذا كان فيه تقديم (Seek) نستخدم -ss
+    seek_param = f"-ss {start_time} " if start_time > 0 else ""
+    ffmpeg_params = f"{seek_param}-re -nostdin -threads 0"
+
     stream = MediaStream(
         track.file_path,
         audio_parameters=AudioQuality.STUDIO,
-        # إضافة معاملات FFmpeg لتحسين الـ Buffering ومنع التقطيع
-        ffmpeg_parameters="-re -nostdin -threads 0"
+        ffmpeg_parameters=ffmpeg_params
     )
     await calls.play(chat_id, stream)
 
@@ -335,18 +338,34 @@ async def play_next(chat_id: int) -> None:
     # التشغيل الفعلي بره القفل
     try:
         await _start_playback(chat_id, track)
-        await bot_send(
-            chat_id,
+        
+        # إرسال الملصق المتحرك إذا كان موجوداً
+        if Config.NOW_PLAYING_STICKER:
+            try:
+                await _bot_ref.send_sticker(chat_id, Config.NOW_PLAYING_STICKER)
+            except Exception as e:
+                logger.warning("Failed to send sticker: %s", e)
+        
+        # إرسال رسالة الأغنية مع الأزرار التفاعلية
+        text_msg = (
             f"▶️ **دلوقتي بتشتغل:**\n"
             f"🎵 {track.title}\n"
             f"⏱️ {fmt_duration(track.duration)}\n"
-            f"👤 طلبها: {track.requester_name}",
+            f"👤 طلبها: {track.requester_name}"
         )
-        # Preload: اطبع بس رسالة log إن فيه أغنية جاية (بدون ما نعمل تحميل فعلي)
-        # لأن الملف بيتحمّل وقت /play أصلاً
-        if state.queue:
-            logger.info("Next track ready in queue: %s", state.queue[0].title)
+        msg = await _bot_ref.send_message(
+            chat_id=chat_id,
+            text=text_msg,
+            reply_markup=get_player_buttons(state)
+        )
+        
+        # حفظ بيانات الرسالة ووقت التشغيل
+        async with get_lock(chat_id):
+            state.now_playing_message_id = msg.message_id
+            state.playback_start_time = time.time()
+            state.elapsed_time_before_pause = 0.0
     except NoActiveGroupCall:
+        
         async with get_lock(chat_id):
             state.current = None
             state.is_playing = False
@@ -487,13 +506,34 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     # التشغيل الفعلي (بره القفل)
     try:
         await _start_playback(chat_id, track)
-        await status.edit_text(
-            f"▶️ **بدأت تشغيل:**\n"
-            f"🎵 {track.title}\n"
-            f"⏱️ {fmt_duration(track.duration)}\n"
-            f"👤 طلبها: {track.requester_name}"
+        
+        # إرسال الملصق المتحرك
+        if Config.NOW_PLAYING_STICKER:
+            try:
+                await _bot_ref.send_sticker(chat_id, Config.NOW_PLAYING_STICKER)
+            except Exception:
+                pass
+
+        # إرسال رسالة الأغنية مع الأزرار
+        msg = await _bot_ref.send_message(
+            chat_id=chat_id,
+            text=(
+                f"▶️ **بدأت تشغيل:**\n"
+                f"🎵 {track.title}\n"
+                f"⏱️ {fmt_duration(track.duration)}\n"
+                f"👤 طلبها: {track.requester_name}"
+            ),
+            reply_markup=get_player_buttons(state)
         )
+        await status.delete() # مسح رسالة "بدور على"
+        
+        # حفظ بيانات الرسالة ووقت التشغيل
+        async with get_lock(chat_id):
+            state.now_playing_message_id = msg.message_id
+            state.playback_start_time = time.time()
+            state.elapsed_time_before_pause = 0.0
     except NoActiveGroupCall:
+        
         async with get_lock(chat_id):
             state.current = None
             state.is_playing = False
@@ -671,6 +711,90 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 # ============================================================
+# (9.5) Inline Buttons Handler (التحكم بالأزرار)
+# ============================================================
+async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """بيتعامل مع ضغطات الأزرار (إيقاف، تشغيل، تخطي، تقديم، تأخير)."""
+    query = update.callback_query
+    await query.answer() # رد فوري على تيليجرام إننا استلمنا الضغطة
+    
+    chat_id = update.effective_chat.id
+    state = get_state(chat_id)
+    data = query.data
+
+    if data == "player_close":
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        return
+
+    if not state.current:
+        await query.edit_message_text("⚠️ مفيش أغنية شغالة دلوقتي.")
+        return
+
+    # زرار الإيقاف/التشغيل
+    if data == "player_pause_resume":
+        try:
+            if state.is_playing:
+                # حساب الوقت اللي فات قبل الإيقاف
+                state.elapsed_time_before_pause += time.time() - state.playback_start_time
+                await calls.pause(chat_id)
+                state.is_playing = False
+                state.is_paused = True
+            else:
+                await calls.resume(chat_id)
+                state.is_playing = True
+                state.is_paused = False
+                state.playback_start_time = time.time()
+            
+            await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+        except Exception as e:
+            logger.warning("Pause/Resume error: %s", e)
+
+    # زرار تخطي
+    elif data == "player_skip":
+        await query.edit_message_text("⏭️ جاري التخطي...")
+        asyncio.create_task(play_next(chat_id))
+
+    # زرار إنهاء
+    elif data == "player_stop":
+        state.clear()
+        try:
+            await calls.leave_call(chat_id)
+        except Exception:
+            pass
+        await query.edit_message_text("⏹️ تم إيقاف التشغيل ومسح الطابور.")
+
+    # زرار التقديم +10s
+    elif data == "player_seek_fwd":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = int(current_elapsed) + 10
+        if new_time < state.current.duration:
+            await query.edit_message_text("⏩ جاري التقديم 10 ثواني...")
+            await _start_playback(chat_id, state.current, start_time=new_time)
+            state.playback_start_time = time.time()
+            state.elapsed_time_before_pause = new_time
+            state.is_playing = True
+            state.is_paused = False
+            await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+        else:
+            await query.answer("⚠️ وصلنا لنهاية الأغنية.", show_alert=True)
+
+    # زرار التأخير -10s
+    elif data == "player_seek_back":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = max(0, int(current_elapsed) - 10)
+        await query.edit_message_text("⏪ جاري التأخير 10 ثواني...")
+        await _start_playback(chat_id, state.current, start_time=new_time)
+        state.playback_start_time = time.time()
+        state.elapsed_time_before_pause = new_time
+        state.is_playing = True
+        state.is_paused = False
+        await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+
+
+# ============================================================
 # (10) Startup / Shutdown
 # ============================================================
 async def post_init(application: Application) -> None:
@@ -743,6 +867,9 @@ def main() -> None:
     application.add_handler(CommandHandler(["volume", "v"], volume_command))
     application.add_handler(CommandHandler(["ping"], ping_command))
     application.add_handler(CommandHandler(["help", "h"], help_command))
+    
+    # تسجيل الـ Handler بتاع الأزرار التفاعلية
+    application.add_handler(CallbackQueryHandler(player_callback_handler, pattern="^player_"))
 
     # أوامر عربي عبر MessageHandler (لأن PTB مابيقبلش عربي في CommandHandler)
     arabic_commands = {
