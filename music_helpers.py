@@ -193,11 +193,14 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        "extractor_args": {"youtube": {
-            "player_client": ["tv", "web", "android"],
-            "formats": ["missing_pot"],
-            "getpot_bgutil_baseurl": [os.getenv("POT_PROVIDER_URL", "http://pot-provider.railway.internal:4416")],
-        }},
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "tv", "android"],
+            },
+            "youtubepot-bgutilhttp": {
+                "base_url": [os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416")],
+            },
+        },
     }
     if os.path.exists(cookie_file):
         opts["cookiefile"] = cookie_file
