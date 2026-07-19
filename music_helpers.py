@@ -813,7 +813,7 @@ async def post_init(application: Application) -> None:
             break
         except Exception as e:
             if "AUTH_KEY_DUPLICATED" in str(e) or "AuthKeyDuplicated" in str(e):
-                wait_time = attempt * 20
+                wait_time = attempt * 30
                 logger.warning(
                     "⚠️ الجلسة لسه شغالة في مكان تاني (محاولة %s/%s). هستنى %s ثانية...",
                     attempt, max_retries, wait_time,
@@ -829,6 +829,14 @@ async def post_init(application: Application) -> None:
                     logger.error("   4) لو ولّدت SESSION_STRING من أداة online → ولّدها من سكريبت محلي بدلها")
                     logger.error("   5) وقّف البوت، استنى 5 دقايق، وشغّله تاني")
                     logger.error("=" * 60)
+                    # مهم: انتظر 90 ثانية قبل ما نموت عشان تيليجرام يقفل الجلسة
+                    # من جهته، وRailway لما يـ restart مش هيلاقي نفس المشكلة
+                    logger.warning("⏳ هستنى 90 ثانية قبل ما أقفل عشان تيليجرام يقفل الجلسة من جهته...")
+                    try:
+                        await user_client.stop()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(90)
                     raise
                 try:
                     await user_client.stop()
