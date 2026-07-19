@@ -27,12 +27,13 @@ from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
 )
 from yt_dlp import YoutubeDL
@@ -79,6 +80,10 @@ class ChatState:
         self.current: Optional[Track] = None
         self.is_paused: bool = False
         self.is_playing: bool = False
+        # متغيرات جديدة للأزرار وحساب الوقت
+        self.now_playing_message_id: Optional[int] = None
+        self.playback_start_time: float = 0.0
+        self.elapsed_time_before_pause: float = 0.0
 
     def clear(self) -> None:
         """يمسح الطابور وكل الملفات اللي اتحملت."""
@@ -183,6 +188,30 @@ async def bot_send(chat_id: int, text: str) -> None:
         except Exception as e:
             logger.warning("Failed to send message to %s: %s", chat_id, e)
 
+
+def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
+    """يبني أزرار التحكم في الأغنية (تقديم/تأخير/إيقاف/تخطي)."""
+    # زرار الإيقاف/التشغيل بيتغير حسب حالة الأغنية
+    pause_resume_btn = InlineKeyboardButton(
+        "⏸️ إيقاف" if state.is_playing else "▶️ تشغيل",
+        callback_data="player_pause_resume"
+    )
+    
+    buttons = [
+        [
+            InlineKeyboardButton("⏪ -10s", callback_data="player_seek_back"),
+            InlineKeyboardButton("⏩ +10s", callback_data="player_seek_fwd"),
+        ],
+        [
+            pause_resume_btn,
+            InlineKeyboardButton("⏭️ تخطي", callback_data="player_skip"),
+            InlineKeyboardButton("⏹️ إنهاء", callback_data="player_stop"),
+        ],
+        [
+            InlineKeyboardButton("❌ إغلاق", callback_data="player_close")
+        ]
+    ]
+    return InlineKeyboardMarkup(buttons)
 
 # ============================================================
 # (6) YouTube download (yt-dlp)
