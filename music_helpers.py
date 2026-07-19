@@ -323,7 +323,7 @@ def search_and_download(query: str) -> list[dict]:
                 last_error = e2
                 continue
 
-raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
+    raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
 
 async def download_async(query: str) -> list[dict]:
     loop = asyncio.get_running_loop()
