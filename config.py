@@ -43,7 +43,7 @@ class Config:
     # "bestaudio/best" = أي صوت متاح بأعلى جودة (بدون تقييد بصيغة معينة)
     # ⚠️ مفيش env var YDL_FORMAT في Railway عشان ميلغي الكود ده
     YDL_FORMAT: str = os.getenv(
-        "YDL_FORMAT", "bestaudio/best"
+        "YDL_FORMAT", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
     )
 
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
