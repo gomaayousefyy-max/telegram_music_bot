@@ -222,11 +222,10 @@ def _ydl_opts() -> dict:
         "socket_timeout": 30,
         "retries": 3,
         "fragment_retries": 3,
-        # خدعة لتخطي حظر يوتيوب: جعله يظن أن الطلب قادم من آيفون
-        "extractor_args": {"youtube": {"player_client": ["ios"]}},
     }
     
     # إضافة الكوكيز عشان نتفادى حظر يوتيوب للسيرفرات
+    # الكوكيز بيسمح لنا بتحميل أي صيغة بدون الحاجة لخدعة الآيفون
     if os.path.exists("youtube.com_cookies.txt"):
         opts["cookiefile"] = "youtube.com_cookies.txt"
         
