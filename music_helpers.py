@@ -204,21 +204,18 @@ def _ydl_opts() -> dict:
 
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
-    # المحاولة الأولى: الصيغة الصوتية المطلوبة
     try:
         with YoutubeDL(_ydl_opts()) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
     except DownloadError as e:
         logger.warning(f"Download failed with primary format: {e}")
-        # المحاولة التانية: استخدام صيغة 'best' (أي حاجة متاحة)
         fallback_opts = _ydl_opts().copy()
         fallback_opts['format'] = 'best'
         with YoutubeDL(fallback_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
-    # حل مشكلة الامتداد المختلف عن اللي اتكتب
     if not os.path.exists(filename):
         base, _ = os.path.splitext(filename)
         for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
