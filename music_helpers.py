@@ -414,9 +414,10 @@ async def play_next(chat_id: int) -> None:
             f"⏱️ {fmt_duration(track.duration)}\n"
             f"👤 طلبها: {track.requester_name}"
         )
-        msg = await _bot_ref.send_message(
+        msg = await _bot_ref.send_animation(
             chat_id=chat_id,
-            text=text_msg,
+            animation="ROPETE_GIF_URL_HERE",  # الرابط اللي بينتهي بـ .gif
+            caption=text_msg,
             reply_markup=get_player_buttons(state)
         )
         
