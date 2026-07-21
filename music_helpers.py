@@ -543,14 +543,14 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             except Exception:
                 pass
                 
-        msg = await _bot_ref.send_message(
+        text_msg = (
+            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
+        )
+        msg = await _bot_ref.send_animation(
             chat_id=chat_id,
-            text=(
-                f"▶️ **بدأت تشغيل:**\n"
-                f"🎵 {track.title}\n"
-                f"⏱️ {fmt_duration(track.duration)}\n"
-                f"👤 طلبها: {track.requester_name}"
-            ),
+            animation=MUSIC_GIF_URL,
+            caption=text_msg,
             reply_markup=get_player_buttons(state)
         )
         await status.delete()
