@@ -31,6 +31,8 @@ from yt_dlp.utils import DownloadError
 from config import Config
 
 MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
+MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
+_cached_gif_file_id: Optional[str] = None
 # ============================================================
 # (1) Logger
 # ============================================================
@@ -425,12 +427,15 @@ async def play_next(chat_id: int) -> None:
             f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
         try:
+            global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=open(MUSIC_GIF_PATH, "rb"),
+                animation=_cached_gif_file_id or open(MUSIC_GIF_PATH, "rb"),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
+            if not _cached_gif_file_id and msg.animation:
+                _cached_gif_file_id = msg.animation.file_id
         except Exception as e:
             logger.warning("Failed to send GIF, falling back to text: %s", e)
             msg = await _bot_ref.send_message(
@@ -555,12 +560,15 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
         try:
+            global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=open(MUSIC_GIF_PATH, "rb"),
+                animation=_cached_gif_file_id or open(MUSIC_GIF_PATH, "rb"),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
+            if not _cached_gif_file_id and msg.animation:
+                _cached_gif_file_id = msg.animation.file_id
         except Exception as e:
             logger.warning("Failed to send GIF, falling back to text: %s", e)
             msg = await _bot_ref.send_message(
