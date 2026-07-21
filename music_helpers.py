@@ -16,7 +16,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -157,26 +157,15 @@ async def bot_send(chat_id: int, text: str) -> None:
             logger.warning("Failed to send message to %s: %s", chat_id, e)
 
 def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
-    pause_resume_btn = InlineKeyboardButton(
-        "⏸️ إيقاف" if state.is_playing else "▶️ تشغيل",
-        callback_data="player_pause_resume"
-    )
     buttons = [
         [
-            InlineKeyboardButton("⏪ -10s", callback_data="player_seek_back"),
-            InlineKeyboardButton("⏩ +10s", callback_data="player_seek_fwd"),
-        ],
-        [
-            pause_resume_btn,
-            InlineKeyboardButton("⏭️ تخطي", callback_data="player_skip"),
-            InlineKeyboardButton("⏹️ إنهاء", callback_data="player_stop"),
-        ],
-        [
-            InlineKeyboardButton("❌ إغلاق", callback_data="player_close")
+            InlineKeyboardButton(
+                "🎛️ لوحة التحكم",
+                web_app=WebAppInfo(url=Config.PLAYER_WEBAPP_URL),
+            )
         ]
     ]
     return InlineKeyboardMarkup(buttons)
-
 # ============================================================
 # (6) YouTube download (yt-dlp) - تم تنظيف كل المسافات هنا
 # ============================================================
@@ -793,6 +782,75 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         state.is_playing = True
         state.is_paused = False
         await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+
+
+import json as _json
+
+async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """يستقبل الأزرار من صفحة الـ WebApp الملونة ويشغّل نفس منطق player_callback_handler."""
+    raw = update.effective_message.web_app_data.data
+    try:
+        payload = _json.loads(raw)
+        action = payload.get("action")
+    except Exception:
+        return
+
+    chat_id = update.effective_chat.id
+    state = get_state(chat_id)
+
+    if action == "player_close":
+        return
+    if not state.current:
+        await bot_send(chat_id, "⚠️ مفيش أغنية شغالة دلوقتي.")
+        return
+
+    if action == "player_pause_resume":
+        try:
+            if state.is_playing:
+                state.elapsed_time_before_pause += time.time() - state.playback_start_time
+                await calls.pause(chat_id)
+                state.is_playing = False
+                state.is_paused = True
+            else:
+                await calls.resume(chat_id)
+                state.is_playing = True
+                state.is_paused = False
+                state.playback_start_time = time.time()
+        except Exception as e:
+            logger.warning("Pause/Resume error (webapp): %s", e)
+
+    elif action == "player_skip":
+        asyncio.create_task(play_next(chat_id))
+
+    elif action == "player_stop":
+        state.clear()
+        try:
+            await calls.leave_call(chat_id)
+        except Exception:
+            pass
+        await bot_send(chat_id, "⏹️ تم إيقاف التشغيل ومسح الطابور.")
+
+    elif action == "player_seek_fwd":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = int(current_elapsed) + 10
+        if new_time < state.current.duration:
+            await _start_playback(chat_id, state.current, start_time=new_time)
+            state.playback_start_time = time.time()
+            state.elapsed_time_before_pause = new_time
+            state.is_playing = True
+            state.is_paused = False
+        else:
+            await bot_send(chat_id, "⚠️ وصلنا لنهاية الأغنية.")
+
+    elif action == "player_seek_back":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = max(0, int(current_elapsed) - 10)
+        await _start_playback(chat_id, state.current, start_time=new_time)
+        state.playback_start_time = time.time()
+        state.elapsed_time_before_pause = new_time
+        state.is_playing = True
+        state.is_paused = False
+
 
 # ============================================================
 # (10) Startup / Shutdown
