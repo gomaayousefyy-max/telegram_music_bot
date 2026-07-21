@@ -28,6 +28,7 @@ from music_helpers import (
     ping_command,
     help_command,
     player_callback_handler,
+    web_app_data_handler,      # ← جديد
     global_error_handler,
 )
 
@@ -61,6 +62,7 @@ def main() -> None:
     
     # تسجيل الـ Handler بتاع الأزرار التفاعلية
     application.add_handler(CallbackQueryHandler(player_callback_handler, pattern="^player_"))
+    application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
 
     # أوامر عربي عبر MessageHandler (لأن PTB مابيقبلش عربي في CommandHandler)
     arabic_commands = {
