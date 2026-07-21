@@ -425,12 +425,20 @@ async def play_next(chat_id: int) -> None:
             f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
             f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
-        msg = await _bot_ref.send_animation(
-            chat_id=chat_id,
-            animation=MUSIC_GIF_URL,
-            caption=text_msg,
-            reply_markup=get_player_buttons(state)
-        )
+        try:
+            msg = await _bot_ref.send_animation(
+                chat_id=chat_id,
+                animation=MUSIC_GIF_URL,
+                caption=text_msg,
+                reply_markup=get_player_buttons(state)
+            )
+        except Exception as e:
+            logger.warning("Failed to send GIF, falling back to text: %s", e)
+            msg = await _bot_ref.send_message(
+                chat_id=chat_id,
+                text=text_msg,
+                reply_markup=get_player_buttons(state)
+            )
         
         async with get_lock(chat_id):
             state.now_playing_message_id = msg.message_id
@@ -547,12 +555,20 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
             f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
-        msg = await _bot_ref.send_animation(
-            chat_id=chat_id,
-            animation=MUSIC_GIF_URL,
-            caption=text_msg,
-            reply_markup=get_player_buttons(state)
-        )
+        try:
+            msg = await _bot_ref.send_animation(
+                chat_id=chat_id,
+                animation=MUSIC_GIF_URL,
+                caption=text_msg,
+                reply_markup=get_player_buttons(state)
+            )
+        except Exception as e:
+            logger.warning("Failed to send GIF, falling back to text: %s", e)
+            msg = await _bot_ref.send_message(
+                chat_id=chat_id,
+                text=text_msg,
+                reply_markup=get_player_buttons(state)
+            )
         await status.delete()
         
         async with get_lock(chat_id):
