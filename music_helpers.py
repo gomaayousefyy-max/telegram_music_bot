@@ -31,20 +31,6 @@ from yt_dlp.utils import DownloadError
 from config import Config
 
 MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
-MUSIC_GIF_PATH = os.path.join(Config.DOWNLOAD_DIR, "now_playing.gif")
-
-
-def ensure_music_gif_downloaded() -> None:
-    """يحمل الـ GIF مرة واحدة بس لو مش موجود بالفعل محليًا."""
-    if os.path.exists(MUSIC_GIF_PATH) and os.path.getsize(MUSIC_GIF_PATH) > 1000:
-        return
-    try:
-        import urllib.request
-        os.makedirs(Config.DOWNLOAD_DIR, exist_ok=True)
-        urllib.request.urlretrieve(MUSIC_GIF_URL, MUSIC_GIF_PATH)
-        logger.info("✅ GIF التشغيل اتحمل محليًا في %s", MUSIC_GIF_PATH)
-    except Exception as e:
-        logger.warning("فشل تحميل GIF التشغيل محليًا: %s", e)
 # ============================================================
 # (1) Logger
 # ============================================================
@@ -441,7 +427,7 @@ async def play_next(chat_id: int) -> None:
         try:
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL,
+                animation=open(MUSIC_GIF_PATH, "rb"),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
@@ -571,7 +557,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         try:
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL,
+                animation=open(MUSIC_GIF_PATH, "rb"),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
