@@ -11,8 +11,7 @@ pyrofork==2.3.69
 TgCrypto==1.2.5
 
 # --- pytgcalls من GitHub (النسخة النهائية فيها PyTgCalls class) ---
-py-tgcalls @ git+https://github.com/pytgcalls/pytgcalls.git
-
+py-tgcalls==2.3.3
 # --- صوت ---
 PyNaCl==1.5.0
 
