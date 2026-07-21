@@ -31,7 +31,6 @@ from yt_dlp.utils import DownloadError
 from config import Config
 
 MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
-MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
 _cached_gif_file_id: Optional[str] = None
 # ============================================================
 # (1) Logger
