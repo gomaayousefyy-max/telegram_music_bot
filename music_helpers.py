@@ -762,7 +762,7 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         return
         
     if not state.current:
-        await query.edit_message_text("⚠️ مفيش أغنية شغالة دلوقتي.")
+        await query.edit_message_caption("⚠️ مفيش أغنية شغالة دلوقتي.")
         return
         
     if data == "player_pause_resume":
@@ -782,7 +782,7 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             logger.warning("Pause/Resume error: %s", e)
             
     elif data == "player_skip":
-        await query.edit_message_text("⏭️ جاري التخطي...")
+        await query.edit_message_caption("⏭️ جاري التخطي...")
         asyncio.create_task(play_next(chat_id))
         
     elif data == "player_stop":
@@ -791,13 +791,13 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             await calls.leave_call(chat_id)
         except Exception:
             pass
-        await query.edit_message_text("⏹️ تم إيقاف التشغيل ومسح الطابور.")
+        await query.edit_message_caption("⏹️ تم إيقاف التشغيل ومسح الطابور.")
         
     elif data == "player_seek_fwd":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = int(current_elapsed) + 10
         if new_time < state.current.duration:
-            await query.edit_message_text("⏩ جاري التقديم 10 ثواني...")
+            await query.edit_message_caption("⏩ جاري التقديم 10 ثواني...")
             await _start_playback(chat_id, state.current, start_time=new_time)
             state.playback_start_time = time.time()
             state.elapsed_time_before_pause = new_time
@@ -805,12 +805,12 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             state.is_paused = False
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
         else:
-            await query.edit_message_text("⚠️ وصلنا لنهاية الأغنية.")
+            await query.edit_message_caption("⚠️ وصلنا لنهاية الأغنية.")
             
     elif data == "player_seek_back":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = max(0, int(current_elapsed) - 10)
-        await query.edit_message_text("⏪ جاري التأخير 10 ثواني...")
+        await query.edit_message_caption("⏪ جاري التأخير 10 ثواني...")
         await _start_playback(chat_id, state.current, start_time=new_time)
         state.playback_start_time = time.time()
         state.elapsed_time_before_pause = new_time
