@@ -161,7 +161,7 @@ def get_player_buttons(state: ChatState) -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(
                 "🎛️ لوحة التحكم",
-                web_app=WebAppInfo(url=Config.PLAYER_WEBAPP_URL),
+                url=Config.PLAYER_WEBAPP_URL,
             )
         ]
     ]
