@@ -30,7 +30,7 @@ from yt_dlp.utils import DownloadError
 
 from config import Config
 
-MUSIC_GIF_URL = "https://media.tenor.com/M5oU353Pyl8AAAAC/moil-444pluto.gif"
+MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
 MUSIC_GIF_PATH = os.path.join(Config.DOWNLOAD_DIR, "now_playing.gif")
 
 
