@@ -61,6 +61,8 @@ class Config:
     # مسار ffmpeg (لو مش في الـ PATH اكتب المسار الكامل زي /usr/bin/ffmpeg)
     FFMPEG_PATH: str = os.getenv("FFMPEG_PATH", "ffmpeg")
 
+    PLAYER_WEBAPP_URL = os.getenv("PLAYER_WEBAPP_URL", "https://gomaayousefyy-max.github.io/telegram_music_bot/")
+
     # ----------------------------------------------------------
     # (4) هوية البوت
     # ----------------------------------------------------------
