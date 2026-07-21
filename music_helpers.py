@@ -228,7 +228,7 @@ def _download_single(url: str) -> dict:
     except DownloadError as e:
         logger.warning(f"Download failed with primary format: {e}")
         fallback_opts = _ydl_opts().copy()
-        fallback_opts['format'] = 'best'
+        fallback_opts['format'] = 'bestaudio/best'
         with YoutubeDL(fallback_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
@@ -349,7 +349,7 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-re -nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
     stream = MediaStream(
         track.file_path,
