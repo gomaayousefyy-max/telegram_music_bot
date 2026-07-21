@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Player</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px;
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: var(--tg-theme-bg-color, #0f0f1e);
+    color: var(--tg-theme-text-color, #ffffff);
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh;
+  }
+  .player-box { width: 100%; max-width: 360px; text-align: center; }
+  .title { font-size: 18px; margin-bottom: 24px; opacity: 0.85; }
+  .btn-row { display: flex; justify-content: center; gap: 14px; margin-bottom: 16px; }
+  .btn {
+    border: none; border-radius: 16px; padding: 16px; font-size: 22px;
+    cursor: pointer; color: #fff; min-width: 64px; transition: transform 0.15s ease;
+  }
+  .btn:active { transform: scale(0.9); }
+  .btn-play  { background: linear-gradient(145deg,#00e676,#00b248); box-shadow: 0 0 18px #00e67699; }
+  .btn-skip  { background: linear-gradient(145deg,#40c4ff,#0091ea); box-shadow: 0 0 18px #40c4ff99; }
+  .btn-stop  { background: linear-gradient(145deg,#ff5252,#c62828); box-shadow: 0 0 18px #ff525299; }
+  .btn-seek  { background: linear-gradient(145deg,#ffd740,#ff8f00); box-shadow: 0 0 18px #ffd74099; }
+  .btn-close { background: linear-gradient(145deg,#b388ff,#651fff); box-shadow: 0 0 18px #b388ff99; }
+  .glow-pulse { animation: pulse 1.8s infinite ease-in-out; }
+  @keyframes pulse { 0%{filter:brightness(1);} 50%{filter:brightness(1.25);} 100%{filter:brightness(1);} }
+  .label { font-size: 11px; display: block; margin-top: 4px; opacity: 0.9; }
+</style>
+</head>
+<body>
+  <div class="player-box">
+    <div class="title">🎵 لوحة تحكم المشغل</div>
+    <div class="btn-row">
+      <button class="btn btn-seek" onclick="send('player_seek_back')">⏪<span class="label">-10s</span></button>
+      <button class="btn btn-play glow-pulse" onclick="send('player_pause_resume')">⏯️<span class="label">تشغيل/إيقاف</span></button>
+      <button class="btn btn-seek" onclick="send('player_seek_fwd')">⏩<span class="label">+10s</span></button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-skip" onclick="send('player_skip')">⏭️<span class="label">تخطي</span></button>
+      <button class="btn btn-stop" onclick="send('player_stop')">⏹️<span class="label">إنهاء</span></button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-close" onclick="send('player_close')">❌<span class="label">إغلاق</span></button>
+    </div>
+  </div>
+<script>
+  const tg = window.Telegram.WebApp;
+  tg.ready();
+  tg.expand();
+  function send(action) {
+    tg.sendData(JSON.stringify({ action: action }));
+    tg.close();
+  }
+</script>
+</body>
+</html>
