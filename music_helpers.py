@@ -205,7 +205,7 @@ def _ydl_opts() -> dict:
         
         "extractor_args": {
             "youtube": {
-                "player_client": ["android"],
+                "player_client": ["android", "web", "tv"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": [os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416")],
@@ -430,8 +430,8 @@ async def play_next(chat_id: int) -> None:
                 logger.warning("Failed to send sticker: %s", e)
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
+            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
         )
         try:
             global _cached_gif_file_id
@@ -567,8 +567,8 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 pass
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
+            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
         )
         try:
             global _cached_gif_file_id
@@ -760,7 +760,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ============================================================
 async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass  # الزرار اتضغط بس الـ query انتهت صلاحيتها - مش مشكلة
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
     data = query.data
