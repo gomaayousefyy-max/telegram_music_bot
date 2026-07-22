@@ -317,7 +317,9 @@ def search_and_download(query: str) -> list[dict]:
                 return _finish_search(info)
         except DownloadError as e:
             last_error = e
-            logger.warning(f"Search failed on source '{target[:12]}...': {e}")
+        logger.warning(f"❌ فشل البحث من '{target[:12]}...': {e}")
+        if "403" in str(e) and "ytsearch" in target:
+            logger.info("⚠️ يوتيوب محجوب من IP السيرفر، بننتقل لـ SoundCloud...")
             try:
                 fallback_opts = _ydl_opts().copy()
                 fallback_opts['format'] = 'best'
