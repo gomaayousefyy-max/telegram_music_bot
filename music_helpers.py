@@ -198,6 +198,7 @@ def _ydl_opts() -> dict:
         "retries": 1,
         "fragment_retries": 1,
         "extractor_retries": 1,
+        "extractor_retries": 1,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
