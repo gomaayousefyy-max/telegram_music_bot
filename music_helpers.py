@@ -31,6 +31,7 @@ from yt_dlp.utils import DownloadError
 from config import Config
 
 MUSIC_GIF_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "now_playing.gif")
+MUSIC_GIF_URL = "https://media1.tenor.com/m/9fOg1DwpkPYAAAAd/moil-444pluto.gif"
 _cached_gif_file_id: Optional[str] = None
 # ============================================================
 # (1) Logger
@@ -429,7 +430,7 @@ async def play_next(chat_id: int) -> None:
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or open(MUSIC_GIF_PATH, "rb"),
+                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
@@ -562,7 +563,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or open(MUSIC_GIF_PATH, "rb"),
+                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state)
             )
