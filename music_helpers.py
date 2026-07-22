@@ -530,6 +530,10 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             )
         )
         
+    if not tracks_to_add:
+        await status.edit_text("❌ مقدرتش ألاقي أي نتيجة للأغنية دي، جرب اسم تاني أو رابط مباشر.")
+        return
+        
     async with get_lock(chat_id):
         state = get_state(chat_id)
         if state.is_playing or state.is_paused:
