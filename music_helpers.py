@@ -198,7 +198,6 @@ def _ydl_opts() -> dict:
         "retries": 1,
         "fragment_retries": 1,
         "extractor_retries": 1,
-        "extractor_retries": 1,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
@@ -226,44 +225,53 @@ def _ydl_opts() -> dict:
 
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
+    info = None
+    filename = None
     try:
         with YoutubeDL(_ydl_opts()) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
     except DownloadError as e:
         logger.warning(f"Download failed with primary format: {e}")
-        fallback_opts = _ydl_opts().copy()
-        fallback_opts['format'] = 'bestaudio/best'
-        with YoutubeDL(fallback_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+        try:
+            fallback_opts = _ydl_opts().copy()
+            fallback_opts['format'] = 'bestaudio/best'
+            with YoutubeDL(fallback_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+        except DownloadError as e2:
+            logger.error(f"Download failed with fallback format too: {e2}")
+            raise e2  # إعادة رفع الخطأ ليتم التقاطه بشكل صحيح
+    
+    # التأكد من وجود الملف حتى لو تغير الامتداد
+    if not filename or not os.path.exists(filename):
+        if info and "id" in info:
+            base = os.path.join(Config.DOWNLOAD_DIR, info["id"])
+            for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
+                candidate = base + ext
+                if os.path.exists(candidate):
+                    filename = candidate
+                    break
+    
+    if not filename or not os.path.exists(filename):
+        raise FileNotFoundError(f"لم يتم العثور على الملف بعد التحميل: {url}")
 
-    if not os.path.exists(filename):
-        
-        base, _ = os.path.splitext(filename)
-        for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
-            candidate = base + ext
-            if os.path.exists(candidate):
-                filename = candidate
-                break
     duration = int(info.get("duration") or 0)
-
     if os.path.exists(filename):
         size_mb = os.path.getsize(filename) / (1024 * 1024)
-        # فحص تقريبي: أقل من 0.05 ميجا لكل دقيقة معناه الملف ناقص/فاسد
         expected_min_mb = (duration / 60) * 0.05
         if duration > 60 and size_mb < expected_min_mb:
             logger.warning(
                 "⚠️ الملف ناقص محتمل: %s (%.2f MB لمدة %s ثانية)",
                 filename, size_mb, duration,
             )
+    
     return {
         "title": info.get("title", "Unknown"),
         "duration": duration,
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
-
 
 def _finish_search(info: dict) -> list[dict]:
     if isinstance(info, dict) and "entries" in info:
