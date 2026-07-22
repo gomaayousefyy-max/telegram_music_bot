@@ -40,12 +40,12 @@ class Config:
     # (3) إعدادات التشغيل
     # ----------------------------------------------------------
     # جودة التحميل من يوتيوب
+    # "bestaudio/best" = أي صوت متاح بأعلى جودة (بدون تقييد بصيغة معينة)
+    # ⚠️ مفيش env var YDL_FORMAT في Railway عشان ميلغي الكود ده
     YDL_FORMAT: str = os.getenv(
         "YDL_FORMAT", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
     )
-    
-    # ➕ أضف هذا السطر هنا بالضبط ➕
-    YOUTUBE_PROXY: str = os.getenv("YOUTUBE_PROXY", "") 
+
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))
 

@@ -19,9 +19,7 @@ from pytgcalls.types.stream import AudioQuality, MediaStream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application,
-    CommandHandler,
     ContextTypes,
-    MessageHandler,
     CallbackQueryHandler,
     filters,
 )
@@ -194,10 +192,9 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 10,       # تم التعديل لتسريع الفشل والانتقال للبديل
-        "retries": 1,               # تم التعديل
-        "fragment_retries": 1,      # تم التعديل
-        "extractor_retries": 1,     # تم التعديل
+        "socket_timeout": 30,
+        "retries": 10,
+        "fragment_retries": 10,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
@@ -216,68 +213,54 @@ def _ydl_opts() -> dict:
             },
         },
     }
-    
-    # ➕ المنطق الجديد: إضافة البروكسي لو تم تحديده في الإعدادات ➕
-    if Config.YOUTUBE_PROXY:
-        opts["proxy"] = Config.YOUTUBE_PROXY
-        logger.info("✅ تم تفعيل البروكسي لتجاوز حظر يوتيوب.")
-
     if os.path.exists(cookie_file):
         opts["cookiefile"] = cookie_file
         logger.info("✅ YouTube Cookies file loaded successfully.")
     else:
         logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
-        
     return opts
+
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
-    info = None
-    filename = None
     try:
         with YoutubeDL(_ydl_opts()) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
     except DownloadError as e:
         logger.warning(f"Download failed with primary format: {e}")
-        try:
-            fallback_opts = _ydl_opts().copy()
-            fallback_opts['format'] = 'bestaudio/best'
-            with YoutubeDL(fallback_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-        except DownloadError as e2:
-            logger.error(f"Download failed with fallback format too: {e2}")
-            raise e2  # إعادة رفع الخطأ فوراً لينتقل الكود للمصدر التالي (SoundCloud)
-    
-    # التأكد من وجود الملف حتى لو تغير الامتداد تلقائياً
-    if not filename or not os.path.exists(filename):
-        if info and "id" in info:
-            base = os.path.join(Config.DOWNLOAD_DIR, info["id"])
-            for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
-                candidate = base + ext
-                if os.path.exists(candidate):
-                    filename = candidate
-                    break
-    
-    if not filename or not os.path.exists(filename):
-        raise FileNotFoundError(f"لم يتم العثور على الملف بعد التحميل: {url}")
+        fallback_opts = _ydl_opts().copy()
+        fallback_opts['format'] = 'bestaudio/best'
+        with YoutubeDL(fallback_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
 
+    if not os.path.exists(filename):
+        
+        base, _ = os.path.splitext(filename)
+        for ext in (".m4a", ".webm", ".opus", ".mp3", ".mp4", ".mkv"):
+            candidate = base + ext
+            if os.path.exists(candidate):
+                filename = candidate
+                break
     duration = int(info.get("duration") or 0)
+
     if os.path.exists(filename):
         size_mb = os.path.getsize(filename) / (1024 * 1024)
+        # فحص تقريبي: أقل من 0.05 ميجا لكل دقيقة معناه الملف ناقص/فاسد
         expected_min_mb = (duration / 60) * 0.05
         if duration > 60 and size_mb < expected_min_mb:
             logger.warning(
                 "⚠️ الملف ناقص محتمل: %s (%.2f MB لمدة %s ثانية)",
                 filename, size_mb, duration,
             )
-    
     return {
         "title": info.get("title", "Unknown"),
         "duration": duration,
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
+
+
 def _finish_search(info: dict) -> list[dict]:
     if isinstance(info, dict) and "entries" in info:
         entries = [e for e in info["entries"] if e is not None]
@@ -329,24 +312,9 @@ def search_and_download(query: str) -> list[dict]:
                 if target.startswith("scsearch"):
                     logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s", query)
                 return _finish_search(info)
-    except DownloadError as e:
-        last_error = e
-        error_msg = str(e).lower()
-        
-        # رسائل خطأ محددة لكل نوع مشكلة
-        if "403" in error_msg or "forbidden" in error_msg:
-            logger.warning("🚫 يوتيوب رفض الطلب (403 Forbidden) - IP السيرفر محجوب، بننتقل لـ SoundCloud...")
-        elif "sign in" in error_msg or "bot" in error_msg:
-            logger.warning("🤖 يوتيوب اكتشف إن ده بوت - جرب جدّد الكوكيز أو استنى شوية")
-        elif "private" in error_msg or "unavailable" in error_msg:
-            logger.warning("🔒 الفيديو ده خاص أو مش متاح")
-        elif "age" in error_msg or "restricted" in error_msg:
-            logger.warning("🔞 الفيديو ده مقيد بالسن - محتاج كوكيز من حساب موثّق")
-        else:
-            logger.warning(f"❌ فشل البحث من '{target[:12]}...': {e}")
-        
-        if "ytsearch" in target:
-            logger.info("🔄 بننتقل لـ SoundCloud كبديل...")
+        except DownloadError as e:
+            last_error = e
+            logger.warning(f"Search failed on source '{target[:12]}...': {e}")
             try:
                 fallback_opts = _ydl_opts().copy()
                 fallback_opts['format'] = 'best'
@@ -364,51 +332,6 @@ async def download_async(query: str) -> list[dict]:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_download_executor, search_and_download, query)
 
-
-
-async def download_telegram_file(message) -> Optional[dict]:
-    """تحميل ملف صوتي من رسالة تيليجرام."""
-    if not message or not message.reply_to_message:
-        return None
-    
-    # فحص لو فيه ملف صوتي (audio أو voice)
-    audio = message.reply_to_message.audio or message.reply_to_message.voice
-    
-    if not audio:
-        return None
-    
-    # فحص المدة (لو أكبر من الحد الأقصى)
-    if audio.duration > Config.MAX_DURATION:
-        logger.warning(f"الملف طويل أوي: {audio.duration} ثانية")
-        return None
-    
-    # تحميل الملف
-    try:
-        file_path = await message.reply_to_message.download(
-            file_name=os.path.join(Config.DOWNLOAD_DIR, f"telegram_{audio.file_id}")
-        )
-        
-        if not file_path or not os.path.exists(file_path):
-            logger.error("فشل تحميل الملف من تيليجرام")
-            return None
-        
-        # استخراج المعلومات
-        title = audio.title or audio.file_name or "Telegram Audio"
-        performer = audio.performer or "Unknown"
-        full_title = f"{performer} - {title}" if performer != "Unknown" else title
-        
-        logger.info(f"✅ تم تحميل ملف من تيليجرام: {full_title}")
-        
-        return {
-            "title": full_title,
-            "duration": audio.duration,
-            "url": f"telegram://{audio.file_id}",
-            "file_path": file_path,
-        }
-    except Exception as e:
-        logger.error(f"فشل تحميل ملف تيليجرام: {e}")
-        return None
-        
 # ============================================================
 # (7) Playback control
 # ============================================================
@@ -574,47 +497,23 @@ async def on_closed_voice_chat(_, update: ChatUpdate) -> None:
 # ============================================================
 async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
+    if not context.args:
+        await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
+        return
     
-    # ➕ فحص لو المستخدم رد على ملف صوتي ➕
-    if update.message.reply_to_message:
-        status = await update.effective_chat.send_message("⏳ جاري تحميل الملف الصوتي...")
-        info = await download_telegram_file(update.message)
+    query = " ".join(context.args).strip()
+    if not query:
+        await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.")
+        return
         
-        if info:
-            info_list = [info]
-        else:
-            # لو مفيش ملف صوتي، كمل للبحث العادي
-            if not context.args:
-                await status.edit_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
-                return
-            query = " ".join(context.args).strip()
-            status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
-            try:
-                info_list = await download_async(query)
-            except Exception as e:
-                await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
-                return
-    else:
-        # البحث العادي (يوتيوب/SoundCloud)
-        if not context.args:
-            await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
-            return
-        
-        query = " ".join(context.args).strip()
-        
-        if not query:
-            await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.")
-            return
-        
-        status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
-        
-        try:
-            info_list = await download_async(query)
-        except Exception as e:
-            await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
-            return
-    
     user_name = fmt_user(update.effective_user)
+    status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
+    
+    try:
+        info_list = await download_async(query)
+    except Exception as e:
+        await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
+        return
         
     tracks_to_add = []
     for info in info_list:
@@ -826,29 +725,25 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elapsed_ms = int((time.time() - start) * 1000)
     await msg.edit_text(f"🏓 بونج! {elapsed_ms}ms")
 
-text = (
-    f"🎵 {Config.BOT_NAME} — v{Config.BOT_VERSION}\n\n"
-    "الأوامر:\n"
-    "▶️ /play <اسم أو رابط> — شغّل أغنية\n"
-    "📁 /play (رد على ملف صوتي) — شغّل ملف من تيليجرام\n"
-    "⏸️ /pause — وقف مؤقت\n"
-    "▶️ /resume — كمل\n"
-    "⏭️ /skip — الأغنية اللي بعدها\n"
-    "⏹️ /stop — وقّف كل حاجة وامسح الطابور\n"
-    "📋 /queue — شوف الطابور\n"
-    "🔊 /volume <1-200> — غيّر الصوت\n"
-    "👋 /leave — اطلع من المكالمة\n"
-    "🏓 /ping — فحص السرعة\n"
-    "❓ /help — الرسالة دي\n\n"
-    "المصادر المدعومة:\n"
-    "• يوتيوب (رابط أو بحث)\n"
-    "• SoundCloud (تلقائي لو يوتيوب فشل)\n"
-    "• ملفات تيليجرام الصوتية (رد على ملف + /play)\n\n"
-    "أوامر بالعربي: /تشغيل /وقف /كمل /تخطي /ايقاف /قائمة /صوت /خروج /مساعدة\n\n"
-    f"أقصى مدة للأغنية: {fmt_duration(Config.MAX_DURATION)}\n"
-    f"أقصى حجم للطابور: {Config.MAX_QUEUE} أغنية\n\n"
-    "ملاحظة: لازم يكون فيه Voice Chat شغال في الجروب قبل /play."
-)
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = (
+        f"🎵 {Config.BOT_NAME} — v{Config.BOT_VERSION}\n\n"
+        "الأوامر:\n"
+        "▶️ /play <اسم أو رابط> — شغّل أغنية\n"
+        "⏸️ /pause — وقف مؤقت\n"
+        "▶️ /resume — كمل\n"
+        "⏭️ /skip — الأغنية اللي بعدها\n"
+        "⏹️ /stop — وقّف كل حاجة وامسح الطابور\n"
+        "📋 /queue — شوف الطابور\n"
+        "🔊 /volume <1-200> — غيّر الصوت\n"
+        "👋 /leave — اطلع من المكالمة\n"
+        "🏓 /ping — فحص السرعة\n"
+        "❓ /help — الرسالة دي\n\n"
+        "أوامر بالعربي: /تشغيل /وقف /كمل /تخطي /ايقاف /قائمة /صوت /خروج /مساعدة\n\n"
+        f"أقصى مدة للأغنية: {fmt_duration(Config.MAX_DURATION)}\n"
+        f"أقصى حجم للطابور: {Config.MAX_QUEUE} أغنية\n\n"
+        "ملاحظة: لازم يكون فيه Voice Chat شغال في الجروب قبل /play."
+    )
     await update.message.reply_text(text)
 
 # ============================================================
