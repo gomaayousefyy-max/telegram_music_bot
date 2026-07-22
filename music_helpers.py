@@ -194,10 +194,10 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 10,
-        "retries": 1,
-        "fragment_retries": 1,
-        "extractor_retries": 1,
+        "socket_timeout": 10,       # تم التعديل لتسريع الفشل والانتقال للبديل
+        "retries": 1,               # تم التعديل
+        "fragment_retries": 1,      # تم التعديل
+        "extractor_retries": 1,     # تم التعديل
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
@@ -216,13 +216,19 @@ def _ydl_opts() -> dict:
             },
         },
     }
+    
+    # ➕ المنطق الجديد: إضافة البروكسي لو تم تحديده في الإعدادات ➕
+    if Config.YOUTUBE_PROXY:
+        opts["proxy"] = Config.YOUTUBE_PROXY
+        logger.info("✅ تم تفعيل البروكسي لتجاوز حظر يوتيوب.")
+
     if os.path.exists(cookie_file):
         opts["cookiefile"] = cookie_file
         logger.info("✅ YouTube Cookies file loaded successfully.")
     else:
         logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
+        
     return opts
-
 def _download_single(url: str) -> dict:
     """تحميل أغنية واحدة من رابط (للاستخدام الداخلي)."""
     info = None
