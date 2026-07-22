@@ -205,7 +205,7 @@ def _ydl_opts() -> dict:
         
         "extractor_args": {
             "youtube": {
-                "player_client": ["tv", "android", "web"],
+                "player_client": ["android"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": [os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416")],
@@ -354,35 +354,42 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         f"-avoid_negative_ts make_zero -ar 48000 -ac 2 -bufsize 5M"
     )
     
-    stream = MediaStream(
-        track.file_path,
-        audio_parameters=AudioQuality.STUDIO,
-        ffmpeg_parameters=ffmpeg_params
-    )
-    try:
-        await calls.play(chat_id, stream)
-    except AuthKeyDuplicated:
-        # مفيش فايدة نعمل retry - فيه نسخة تانية شغالة بنفس الـ session
-        logger.error(
-            "AuthKeyDuplicated أثناء التشغيل في chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
-            chat_id,
+    abs_path = os.path.abspath(track.file_path)
+
+    def _new_stream() -> MediaStream:
+        return MediaStream(
+            abs_path,
+            audio_parameters=AudioQuality.STUDIO,
+            ffmpeg_parameters=ffmpeg_params
         )
-        raise
-    except Exception as e:
-        logger.warning("فشلت أول محاولة تشغيل (%s)، بننضف الاتصال ونعيد المحاولة...", type(e).__name__)
+
+    last_error: Exception | None = None
+    for attempt in range(1, 4):  # 3 محاولات بدل محاولتين
         try:
-            await calls.leave_call(chat_id)
-        except Exception:
-            pass
-        await asyncio.sleep(3)
-        try:
-            await calls.play(chat_id, stream)
+            await calls.play(chat_id, _new_stream())
+            return
         except AuthKeyDuplicated:
             logger.error(
-                "AuthKeyDuplicated في إعادة المحاولة لـ chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
+                "AuthKeyDuplicated أثناء التشغيل في chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
                 chat_id,
             )
             raise
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "فشلت محاولة تشغيل رقم %s (%s) في chat %s، بننضف الاتصال...",
+                attempt, type(e).__name__, chat_id,
+            )
+            try:
+                await calls.leave_call(chat_id)
+            except Exception:
+                pass
+            if attempt < 3:
+                await asyncio.sleep(3 * attempt)  # backoff: 3s, 6s
+
+    if last_error:
+        raise last_error
+        
 async def play_next(chat_id: int) -> None:
     async with get_lock(chat_id):
         state = get_state(chat_id)
