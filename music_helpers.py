@@ -329,11 +329,24 @@ def search_and_download(query: str) -> list[dict]:
                 if target.startswith("scsearch"):
                     logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s", query)
                 return _finish_search(info)
-        except DownloadError as e:
-            last_error = e
-        logger.warning(f"❌ فشل البحث من '{target[:12]}...': {e}")
-        if "403" in str(e) and "ytsearch" in target:
-            logger.info("⚠️ يوتيوب محجوب من IP السيرفر، بننتقل لـ SoundCloud...")
+    except DownloadError as e:
+        last_error = e
+        error_msg = str(e).lower()
+        
+        # رسائل خطأ محددة لكل نوع مشكلة
+        if "403" in error_msg or "forbidden" in error_msg:
+            logger.warning("🚫 يوتيوب رفض الطلب (403 Forbidden) - IP السيرفر محجوب، بننتقل لـ SoundCloud...")
+        elif "sign in" in error_msg or "bot" in error_msg:
+            logger.warning("🤖 يوتيوب اكتشف إن ده بوت - جرب جدّد الكوكيز أو استنى شوية")
+        elif "private" in error_msg or "unavailable" in error_msg:
+            logger.warning("🔒 الفيديو ده خاص أو مش متاح")
+        elif "age" in error_msg or "restricted" in error_msg:
+            logger.warning("🔞 الفيديو ده مقيد بالسن - محتاج كوكيز من حساب موثّق")
+        else:
+            logger.warning(f"❌ فشل البحث من '{target[:12]}...': {e}")
+        
+        if "ytsearch" in target:
+            logger.info("🔄 بننتقل لـ SoundCloud كبديل...")
             try:
                 fallback_opts = _ydl_opts().copy()
                 fallback_opts['format'] = 'best'
