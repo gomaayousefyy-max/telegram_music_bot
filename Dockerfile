@@ -34,10 +34,9 @@ RUN git clone --depth 1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.
     && npm install \
     && npx tsc
 
-    # تثبيت NTP لتزامن الوقت
-RUN apt-get update && apt-get install -y ntp ntpdate && \
-    ntpdate pool.ntp.org && \
-    systemctl enable ntp || true
+# تثبيت ntpdate لتزامن الوقت وقت التشغيل
+RUN apt-get update && apt-get install -y --no-install-recommends ntpdate \
+&& rm -rf /var/lib/apt/lists/*
 
 # نسخ باقي كود البوت
 COPY . .
