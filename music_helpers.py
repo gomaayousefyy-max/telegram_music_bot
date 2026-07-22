@@ -247,9 +247,9 @@ def _download_single(url: str) -> dict:
                 filename = ydl.prepare_filename(info)
         except DownloadError as e2:
             logger.error(f"Download failed with fallback format too: {e2}")
-            raise e2  # إعادة رفع الخطأ ليتم التقاطه بشكل صحيح
+            raise e2  # إعادة رفع الخطأ فوراً لينتقل الكود للمصدر التالي (SoundCloud)
     
-    # التأكد من وجود الملف حتى لو تغير الامتداد
+    # التأكد من وجود الملف حتى لو تغير الامتداد تلقائياً
     if not filename or not os.path.exists(filename):
         if info and "id" in info:
             base = os.path.join(Config.DOWNLOAD_DIR, info["id"])
@@ -278,7 +278,6 @@ def _download_single(url: str) -> dict:
         "url": info.get("webpage_url") or info.get("original_url", ""),
         "file_path": filename,
     }
-
 def _finish_search(info: dict) -> list[dict]:
     if isinstance(info, dict) and "entries" in info:
         entries = [e for e in info["entries"] if e is not None]
