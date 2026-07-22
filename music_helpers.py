@@ -364,6 +364,51 @@ async def download_async(query: str) -> list[dict]:
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(_download_executor, search_and_download, query)
 
+
+
+async def download_telegram_file(message) -> Optional[dict]:
+    """تحميل ملف صوتي من رسالة تيليجرام."""
+    if not message or not message.reply_to_message:
+        return None
+    
+    # فحص لو فيه ملف صوتي (audio أو voice)
+    audio = message.reply_to_message.audio or message.reply_to_message.voice
+    
+    if not audio:
+        return None
+    
+    # فحص المدة (لو أكبر من الحد الأقصى)
+    if audio.duration > Config.MAX_DURATION:
+        logger.warning(f"الملف طويل أوي: {audio.duration} ثانية")
+        return None
+    
+    # تحميل الملف
+    try:
+        file_path = await message.reply_to_message.download(
+            file_name=os.path.join(Config.DOWNLOAD_DIR, f"telegram_{audio.file_id}")
+        )
+        
+        if not file_path or not os.path.exists(file_path):
+            logger.error("فشل تحميل الملف من تيليجرام")
+            return None
+        
+        # استخراج المعلومات
+        title = audio.title or audio.file_name or "Telegram Audio"
+        performer = audio.performer or "Unknown"
+        full_title = f"{performer} - {title}" if performer != "Unknown" else title
+        
+        logger.info(f"✅ تم تحميل ملف من تيليجرام: {full_title}")
+        
+        return {
+            "title": full_title,
+            "duration": audio.duration,
+            "url": f"telegram://{audio.file_id}",
+            "file_path": file_path,
+        }
+    except Exception as e:
+        logger.error(f"فشل تحميل ملف تيليجرام: {e}")
+        return None
+        
 # ============================================================
 # (7) Playback control
 # ============================================================
@@ -529,23 +574,47 @@ async def on_closed_voice_chat(_, update: ChatUpdate) -> None:
 # ============================================================
 async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
-    if not context.args:
-        await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
-        return
     
-    query = " ".join(context.args).strip()
-    if not query:
-        await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.")
-        return
+    # ➕ فحص لو المستخدم رد على ملف صوتي ➕
+    if update.message.reply_to_message:
+        status = await update.effective_chat.send_message("⏳ جاري تحميل الملف الصوتي...")
+        info = await download_telegram_file(update.message)
         
-    user_name = fmt_user(update.effective_user)
-    status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
+        if info:
+            info_list = [info]
+        else:
+            # لو مفيش ملف صوتي، كمل للبحث العادي
+            if not context.args:
+                await status.edit_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
+                return
+            query = " ".join(context.args).strip()
+            status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
+            try:
+                info_list = await download_async(query)
+            except Exception as e:
+                await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
+                return
+    else:
+        # البحث العادي (يوتيوب/SoundCloud)
+        if not context.args:
+            await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.\nمثال:\n  /play حماده هلال\n  /play https://youtu.be/xxxxx")
+            return
+        
+        query = " ".join(context.args).strip()
+        
+        if not query:
+            await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.")
+            return
+        
+        status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
+        
+        try:
+            info_list = await download_async(query)
+        except Exception as e:
+            await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
+            return
     
-    try:
-        info_list = await download_async(query)
-    except Exception as e:
-        await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
-        return
+    user_name = fmt_user(update.effective_user)
         
     tracks_to_add = []
     for info in info_list:
@@ -757,25 +826,29 @@ async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     elapsed_ms = int((time.time() - start) * 1000)
     await msg.edit_text(f"🏓 بونج! {elapsed_ms}ms")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = (
-        f"🎵 {Config.BOT_NAME} — v{Config.BOT_VERSION}\n\n"
-        "الأوامر:\n"
-        "▶️ /play <اسم أو رابط> — شغّل أغنية\n"
-        "⏸️ /pause — وقف مؤقت\n"
-        "▶️ /resume — كمل\n"
-        "⏭️ /skip — الأغنية اللي بعدها\n"
-        "⏹️ /stop — وقّف كل حاجة وامسح الطابور\n"
-        "📋 /queue — شوف الطابور\n"
-        "🔊 /volume <1-200> — غيّر الصوت\n"
-        "👋 /leave — اطلع من المكالمة\n"
-        "🏓 /ping — فحص السرعة\n"
-        "❓ /help — الرسالة دي\n\n"
-        "أوامر بالعربي: /تشغيل /وقف /كمل /تخطي /ايقاف /قائمة /صوت /خروج /مساعدة\n\n"
-        f"أقصى مدة للأغنية: {fmt_duration(Config.MAX_DURATION)}\n"
-        f"أقصى حجم للطابور: {Config.MAX_QUEUE} أغنية\n\n"
-        "ملاحظة: لازم يكون فيه Voice Chat شغال في الجروب قبل /play."
-    )
+text = (
+    f"🎵 {Config.BOT_NAME} — v{Config.BOT_VERSION}\n\n"
+    "الأوامر:\n"
+    "▶️ /play <اسم أو رابط> — شغّل أغنية\n"
+    "📁 /play (رد على ملف صوتي) — شغّل ملف من تيليجرام\n"
+    "⏸️ /pause — وقف مؤقت\n"
+    "▶️ /resume — كمل\n"
+    "⏭️ /skip — الأغنية اللي بعدها\n"
+    "⏹️ /stop — وقّف كل حاجة وامسح الطابور\n"
+    "📋 /queue — شوف الطابور\n"
+    "🔊 /volume <1-200> — غيّر الصوت\n"
+    "👋 /leave — اطلع من المكالمة\n"
+    "🏓 /ping — فحص السرعة\n"
+    "❓ /help — الرسالة دي\n\n"
+    "المصادر المدعومة:\n"
+    "• يوتيوب (رابط أو بحث)\n"
+    "• SoundCloud (تلقائي لو يوتيوب فشل)\n"
+    "• ملفات تيليجرام الصوتية (رد على ملف + /play)\n\n"
+    "أوامر بالعربي: /تشغيل /وقف /كمل /تخطي /ايقاف /قائمة /صوت /خروج /مساعدة\n\n"
+    f"أقصى مدة للأغنية: {fmt_duration(Config.MAX_DURATION)}\n"
+    f"أقصى حجم للطابور: {Config.MAX_QUEUE} أغنية\n\n"
+    "ملاحظة: لازم يكون فيه Voice Chat شغال في الجروب قبل /play."
+)
     await update.message.reply_text(text)
 
 # ============================================================
