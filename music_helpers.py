@@ -194,9 +194,10 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 30,
-        "retries": 10,
-        "fragment_retries": 10,
+        "socket_timeout": 10,
+        "retries": 1,
+        "fragment_retries": 1,
+        "extractor_retries": 1,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
