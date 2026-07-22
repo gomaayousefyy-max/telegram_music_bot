@@ -199,13 +199,10 @@ def _ydl_opts() -> dict:
         "fragment_retries": 10,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "opus",
-                "preferredquality": "192",
-            }
-        ],
+        
+        # ملاحظة: شلنا FFmpegExtractAudio لأنه بيعمل إعادة ترميز (re-encode) بعد كل تحميل
+        # وده بياخد وقت زيادة ومفيدش لأن yt-dlp أصلاً بيجيب bestaudio (m4a/webm/opus) جاهز للتشغيل.
+        
         "extractor_args": {
             "youtube": {
                 "player_client": ["tv", "android", "web"],
@@ -352,7 +349,10 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    ffmpeg_params = (
+        f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts "
+        f"-avoid_negative_ts make_zero -ar 48000 -ac 2 -bufsize 5M"
+    )
     
     stream = MediaStream(
         track.file_path,
