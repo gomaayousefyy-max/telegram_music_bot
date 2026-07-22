@@ -194,19 +194,21 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 10,
-        "retries": 1,
-        "fragment_retries": 1,
-        "extractor_retries": 1,
+        "socket_timeout": 30,
+        "retries": 10,
+        "fragment_retries": 10,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
-        
-        # ملاحظة: شلنا FFmpegExtractAudio لأنه بيعمل إعادة ترميز (re-encode) بعد كل تحميل
-        # وده بياخد وقت زيادة ومفيدش لأن yt-dlp أصلاً بيجيب bestaudio (m4a/webm/opus) جاهز للتشغيل.
-        
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "opus",
+                "preferredquality": "192",
+            }
+        ],
         "extractor_args": {
             "youtube": {
-                "player_client": ["android", "web", "tv"],
+                "player_client": ["tv", "android", "web"],
             },
             "youtubepot-bgutilhttp": {
                 "base_url": [os.getenv("POT_PROVIDER_URL", "http://127.0.0.1:4416")],
@@ -350,47 +352,37 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = (
-        f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts "
-        f"-avoid_negative_ts make_zero -ar 48000 -ac 2 -bufsize 5M"
-    )
+    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
-    abs_path = os.path.abspath(track.file_path)
-
-    def _new_stream() -> MediaStream:
-        return MediaStream(
-            abs_path,
-            audio_parameters=AudioQuality.STUDIO,
-            ffmpeg_parameters=ffmpeg_params
+    stream = MediaStream(
+        track.file_path,
+        audio_parameters=AudioQuality.STUDIO,
+        ffmpeg_parameters=ffmpeg_params
+    )
+    try:
+        await calls.play(chat_id, stream)
+    except AuthKeyDuplicated:
+        # مفيش فايدة نعمل retry - فيه نسخة تانية شغالة بنفس الـ session
+        logger.error(
+            "AuthKeyDuplicated أثناء التشغيل في chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
+            chat_id,
         )
-
-    last_error: Exception | None = None
-    for attempt in range(1, 4):  # 3 محاولات بدل محاولتين
+        raise
+    except Exception as e:
+        logger.warning("فشلت أول محاولة تشغيل (%s)، بننضف الاتصال ونعيد المحاولة...", type(e).__name__)
         try:
-            await calls.play(chat_id, _new_stream())
-            return
+            await calls.leave_call(chat_id)
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+        try:
+            await calls.play(chat_id, stream)
         except AuthKeyDuplicated:
             logger.error(
-                "AuthKeyDuplicated أثناء التشغيل في chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
+                "AuthKeyDuplicated في إعادة المحاولة لـ chat %s - فيه نسخة تانية شغالة بنفس SESSION_STRING.",
                 chat_id,
             )
             raise
-        except Exception as e:
-            last_error = e
-            logger.warning(
-                "فشلت محاولة تشغيل رقم %s (%s) في chat %s، بننضف الاتصال...",
-                attempt, type(e).__name__, chat_id,
-            )
-            try:
-                await calls.leave_call(chat_id)
-            except Exception:
-                pass
-            if attempt < 3:
-                await asyncio.sleep(3 * attempt)  # backoff: 3s, 6s
-
-    if last_error:
-        raise last_error
-        
 async def play_next(chat_id: int) -> None:
     async with get_lock(chat_id):
         state = get_state(chat_id)
@@ -431,8 +423,8 @@ async def play_next(chat_id: int) -> None:
                 logger.warning("Failed to send sticker: %s", e)
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
+            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
         try:
             global _cached_gif_file_id
@@ -568,8 +560,8 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 pass
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
+            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
         )
         try:
             global _cached_gif_file_id
@@ -761,10 +753,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ============================================================
 async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    try:
-        await query.answer()
-    except Exception:
-        pass  # الزرار اتضغط بس الـ query انتهت صلاحيتها - مش مشكلة
+    await query.answer()
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
     data = query.data
