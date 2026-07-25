@@ -195,7 +195,7 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 5,
+        "socket_timeout": 15,
         "retries": 1,
         "fragment_retries": 1,
         "extractor_retries": 1,
