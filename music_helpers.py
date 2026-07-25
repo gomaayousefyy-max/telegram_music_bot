@@ -497,9 +497,15 @@ async def on_stream_end(_, update: StreamEnded) -> None:
         state.is_seeking = False
         logger.info("Stream ended in chat %s (Ignored due to seek)", chat_id)
         return
+        
+    # حماية إضافية: لو الأغنية لسه شغالة من أقل من 3 ثواني، نتجاهل الإشارة دي
+    # عشان نتأكد إنها مش إشارة وهمية من التقديم/التأخير أو مشكلة شبكة مؤقتة
+    if time.time() - state.playback_start_time < 3:
+        logger.info("Stream ended in chat %s (Ignored due to rapid restart)", chat_id)
+        return
+
     logger.info("Stream ended in chat %s", chat_id)
     asyncio.create_task(play_next(chat_id))
-
 @calls.on_update(chat_update(ChatUpdate.Status.CLOSED_VOICE_CHAT))
 async def on_closed_voice_chat(_, update: ChatUpdate) -> None:
     chat_id = update.chat_id
@@ -780,7 +786,7 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         return
         
     if not state.current:
-        await query.edit_message_caption("⚠️ مفيش أغنية شغالة دلوقتي.")
+        await query.edit_message_caption("⚠️ مفيش أغنية شغالة دلوقتي.", reply_markup=get_player_buttons(state))
         return
         
     if data == "player_pause_resume":
@@ -896,6 +902,7 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = int(current_elapsed) + 10
         if new_time < state.current.duration:
+            state.is_seeking = True
             await _start_playback(chat_id, state.current, start_time=new_time)
             state.playback_start_time = time.time()
             state.elapsed_time_before_pause = new_time
@@ -907,12 +914,12 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     elif action == "player_seek_back":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = max(0, int(current_elapsed) - 10)
+        state.is_seeking = True
         await _start_playback(chat_id, state.current, start_time=new_time)
         state.playback_start_time = time.time()
         state.elapsed_time_before_pause = new_time
         state.is_playing = True
         state.is_paused = False
-
 
 # ============================================================
 # (10) Startup / Shutdown
