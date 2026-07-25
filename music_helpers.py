@@ -15,7 +15,7 @@ from pytgcalls import PyTgCalls
 from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
-from pytgcalls.types.stream import AudioQuality, MediaStream
+from pytgcalls.types.stream import AudioQuality, AudioStream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.ext import (
     Application,
@@ -363,7 +363,7 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
     ffmpeg_params = f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
-    stream = MediaStream(
+    stream = AudioStream(
         track.file_path,
         audio_parameters=AudioQuality.STUDIO,
         ffmpeg_parameters=ffmpeg_params
