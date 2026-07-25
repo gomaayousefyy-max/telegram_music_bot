@@ -361,7 +361,7 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
     stream = MediaStream(
         track.file_path,
