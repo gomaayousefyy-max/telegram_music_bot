@@ -424,8 +424,8 @@ async def play_next(chat_id: int) -> None:
                 logger.warning("Failed to send sticker: %s", e)
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
+            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
         )
         try:
             global _cached_gif_file_id
@@ -573,8 +573,8 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 pass
                 
         text_msg = (
-            f"🎙️ - تم تشغيل: {state.current.title} 🎶\n"
-            f"🔊 - مدة التشغيل #{fmt_duration(state.current.duration)}"
+            f"🎙️ - تم تشغيل: {track.title} 🎶\n"
+            f"🔊 - مدة التشغيل #{fmt_duration(track.duration)}"
         )
         try:
             global _cached_gif_file_id
