@@ -117,6 +117,7 @@ user_client = Client(
     api_hash=Config.API_HASH,
     session_string=Config.SESSION_STRING,
     in_memory=True,
+    no_updates=True,
 )
 calls = PyTgCalls(user_client, cache_duration=100)
 
