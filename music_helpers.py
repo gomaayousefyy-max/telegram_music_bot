@@ -366,7 +366,6 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     stream = MediaStream(
         track.file_path,
         audio_parameters=AudioQuality.STUDIO,
-        video_parameters=False,
         ffmpeg_parameters=ffmpeg_params
     )
     try:
