@@ -845,34 +845,6 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             except Exception:
                 pass
             
-    elif data == "player_seek_fwd":
-        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
-        new_time = int(current_elapsed) + 10
-        if new_time < state.current.duration:
-            try:
-                await query.edit_message_caption("⏩ جاري التقديم 10 ثواني...", reply_markup=get_player_buttons(state))
-            except Exception:
-                pass
-            state.is_seeking = True
-            try:
-                await _start_playback(chat_id, state.current, start_time=new_time)
-                state.playback_start_time = time.time()
-                state.elapsed_time_before_pause = new_time
-                state.is_playing = True
-                state.is_paused = False
-            except Exception as e:
-                logger.warning("Seek forward failed: %s", e)
-                state.is_seeking = False
-            try:
-                await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-            except Exception:
-                pass
-        else:
-            try:
-                await query.edit_message_caption("⚠️ وصلنا لنهاية الأغنية.", reply_markup=get_player_buttons(state))
-            except Exception:
-                pass
-            
     elif data == "player_seek_back":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = max(0, int(current_elapsed) - 10)
@@ -894,9 +866,6 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
         except Exception:
             pass
-        except Exception:
-            pass
-
 import json as _json
 
 async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
