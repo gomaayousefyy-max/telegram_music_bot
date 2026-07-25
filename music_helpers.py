@@ -201,6 +201,13 @@ def _ydl_opts() -> dict:
         "extractor_retries": 1,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "opus",
+                "preferredquality": "192",
+            }
+        ],
         "extractor_args": {
             "youtube": {
                 "player_client": ["tv", "android", "web"],
