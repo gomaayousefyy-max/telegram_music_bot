@@ -70,6 +70,7 @@ class ChatState:
         self.now_playing_message_id: Optional[int] = None
         self.playback_start_time: float = 0.0
         self.elapsed_time_before_pause: float = 0.0
+        self.is_seeking: bool = False
 
     def clear(self) -> None:
         if self.current and os.path.exists(self.current.file_path):
@@ -90,6 +91,7 @@ class ChatState:
         self.now_playing_message_id = None
         self.playback_start_time = 0.0
         self.elapsed_time_before_pause = 0.0
+        self.is_seeking = False
 
 _states: dict[int, ChatState] = defaultdict(ChatState)
 _locks: dict[int, asyncio.Lock] = {}
@@ -489,6 +491,12 @@ async def play_next(chat_id: int) -> None:
 @calls.on_update(stream_end())
 async def on_stream_end(_, update: StreamEnded) -> None:
     chat_id = update.chat_id
+    state = get_state(chat_id)
+    # لو إحنا بنعمل Skip/Seek، نتجاهل رسالة نهاية الملف عشان البوت مايمسحش الطابور
+    if state.is_seeking:
+        state.is_seeking = False
+        logger.info("Stream ended in chat %s (Ignored due to seek)", chat_id)
+        return
     logger.info("Stream ended in chat %s", chat_id)
     asyncio.create_task(play_next(chat_id))
 
@@ -807,27 +815,36 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = int(current_elapsed) + 10
         if new_time < state.current.duration:
-            await query.edit_message_caption("⏩ جاري التقديم 10 ثواني...")
+            await query.edit_message_caption("⏩ جاري التقديم 10 ثواني...", reply_markup=get_player_buttons(state))
+            state.is_seeking = True
+            try:
+                await _start_playback(chat_id, state.current, start_time=new_time)
+                state.playback_start_time = time.time()
+                state.elapsed_time_before_pause = new_time
+                state.is_playing = True
+                state.is_paused = False
+            except Exception as e:
+                logger.warning("Seek forward failed: %s", e)
+                state.is_seeking = False
+            await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+        else:
+            await query.edit_message_caption("⚠️ وصلنا لنهاية الأغنية.", reply_markup=get_player_buttons(state))
+            
+    elif data == "player_seek_back":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = max(0, int(current_elapsed) - 10)
+        await query.edit_message_caption("⏪ جاري التأخير 10 ثواني...", reply_markup=get_player_buttons(state))
+        state.is_seeking = True
+        try:
             await _start_playback(chat_id, state.current, start_time=new_time)
             state.playback_start_time = time.time()
             state.elapsed_time_before_pause = new_time
             state.is_playing = True
             state.is_paused = False
-            await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-        else:
-            await query.edit_message_caption("⚠️ وصلنا لنهاية الأغنية.")
-            
-    elif data == "player_seek_back":
-        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
-        new_time = max(0, int(current_elapsed) - 10)
-        await query.edit_message_caption("⏪ جاري التأخير 10 ثواني...")
-        await _start_playback(chat_id, state.current, start_time=new_time)
-        state.playback_start_time = time.time()
-        state.elapsed_time_before_pause = new_time
-        state.is_playing = True
-        state.is_paused = False
+        except Exception as e:
+            logger.warning("Seek backward failed: %s", e)
+            state.is_seeking = False
         await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-
 
 import json as _json
 
