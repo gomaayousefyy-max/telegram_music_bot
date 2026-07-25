@@ -679,13 +679,12 @@ async def skip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
-    state.clear()
-    try:
-        await calls.leave_call(chat_id)
-    except Exception:
-        pass
-    await update.message.reply_text("⏹️ وقفنا التشغيل ومسحنا الطابور.")
-
+    if not state.current:
+        await update.message.reply_text("⚠️ مفيش أغنية شغالة.")
+        return
+    await update.message.reply_text("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها في الطابور.")
+    asyncio.create_task(play_next(chat_id))
+    
 async def leave_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
@@ -810,12 +809,11 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         asyncio.create_task(play_next(chat_id))
         
     elif data == "player_stop":
-        state.clear()
-        try:
-            await calls.leave_call(chat_id)
-        except Exception:
-            pass
-        await query.edit_message_caption("⏹️ تم إيقاف التشغيل ومسح الطابور.")
+        if not state.current:
+            await query.edit_message_caption("⚠️ مفيش أغنية شغالة.")
+            return
+        await query.edit_message_caption("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
+        asyncio.create_task(play_next(chat_id))
         
     elif data == "player_seek_fwd":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
