@@ -271,7 +271,6 @@ def _finish_search(info: dict) -> list[dict]:
     else:
         entries = [info]
 
-    results = []
     for entry in entries:
         url = entry.get("webpage_url") or entry.get("url") or entry.get("original_url")
         video_id = entry.get("id")
@@ -287,16 +286,21 @@ def _finish_search(info: dict) -> list[dict]:
 
         if cached_path:
             logger.info("⚡ استخدام نسخة مخزنة (كاش) بدل التحميل: %s", cached_path)
-            results.append({
+            return [{
                 "title": entry.get("title", "Unknown"),
                 "duration": int(entry.get("duration") or 0),
                 "url": entry.get("webpage_url") or entry.get("original_url", ""),
                 "file_path": cached_path,
-            })
-        else:
+            }]
+        
+        try:
             downloaded = _download_single(url)
-            results.append(downloaded)
-    return results
+            return [downloaded]
+        except Exception as e:
+            logger.warning(f"تخطي النتيجة '{entry.get('title')}': {e}")
+            continue
+
+    raise DownloadError("فشل تحميل كل النتائج المتاحة في هذا المصدر.")
 
     
 def search_and_download(query: str) -> list[dict]:
@@ -319,8 +323,8 @@ def search_and_download(query: str) -> list[dict]:
         target = query.strip()
         sources = [target]
     else:
-        # نحاول يوتيوب الأول، ولو فشل نجرب SoundCloud كبديل
-        sources = [f"ytsearch1:{query.strip()}", f"scsearch1:{query.strip()}"]
+        # نجيب 3 نتايج بحث عشان لو أول نتيجة فيديو بريميير أو مش متاح، نجاوز للألي بعدها
+        sources = [f"ytsearch3:{query.strip()}", f"scsearch3:{query.strip()}"]
     last_error = None
     for target in sources:
         try:
