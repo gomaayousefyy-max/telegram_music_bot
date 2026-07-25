@@ -193,9 +193,10 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": False,
-        "socket_timeout": 30,
-        "retries": 10,
-        "fragment_retries": 10,
+        "socket_timeout": 5,
+        "retries": 1,
+        "fragment_retries": 1,
+        "extractor_retries": 1,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
@@ -297,13 +298,27 @@ def _finish_search(info: dict) -> list[dict]:
 
     
 def search_and_download(query: str) -> list[dict]:
+    # لو الرابط من سبوتفاي، نجيب اسم الأغنية وندور عليها في المصادر التانية
+    if "open.spotify.com/track/" in query:
+        import urllib.request, json
+        try:
+            oembed_url = f"https://open.spotify.com/oembed?url={query.strip()}"
+            req = urllib.request.Request(oembed_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+            track_title = data.get('title', '')
+            if track_title:
+                logger.info("🔄 تم استخراج اسم الأغنية من سبوتفاي: %s", track_title)
+                query = track_title
+        except Exception as e:
+            logger.warning("فشل استخراج بيانات سبوتفاي: %s", e)
+
     if is_url(query):
         target = query.strip()
         sources = [target]
     else:
         # نحاول يوتيوب الأول، ولو فشل نجرب SoundCloud كبديل
         sources = [f"ytsearch1:{query.strip()}", f"scsearch1:{query.strip()}"]
-
     last_error = None
     for target in sources:
         try:
