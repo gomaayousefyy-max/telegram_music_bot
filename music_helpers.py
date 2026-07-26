@@ -265,13 +265,24 @@ def _download_single(url: str) -> dict:
     }
 
 
-def _finish_search(info: dict) -> list[dict]:
+def _finish_search(info: dict, allow_unlimited: bool = False) -> list[dict]:
     if isinstance(info, dict) and "entries" in info:
         entries = [e for e in info["entries"] if e is not None]
     else:
         entries = [info]
 
     for entry in entries:
+        duration = int(entry.get("duration") or 0)
+        if not allow_unlimited and duration > Config.MAX_DURATION:
+            logger.warning(
+                "⛔ رفض تحميل فيديو تخطى الحد الأقصى: %s (%s ثانية > %s)",
+                entry.get("title"), duration, Config.MAX_DURATION,
+            )
+            raise DownloadError(
+                f"المدة أطول من الحد المسموح ({fmt_duration(Config.MAX_DURATION)}). "
+                "لو ده قرآن أو محاضرة، اكتب كلمة زي 'قرآن' أو اسم الشيخ في طلبك."
+            )
+
         url = entry.get("webpage_url") or entry.get("url") or entry.get("original_url")
         video_id = entry.get("id")
 
@@ -303,7 +314,14 @@ def _finish_search(info: dict) -> list[dict]:
     raise DownloadError("فشل تحميل كل النتائج المتاحة في هذا المصدر.")
 
     
+def _is_quran_request(query: str) -> bool:
+    """يتحقق هل طلب المستخدم فيه كلمة قرآن/اسم شيخ، عشان نلغي الحد الأقصى للمدة."""
+    q = query.strip().lower()
+    return any(keyword.strip().lower() in q for keyword in Config.QURAN_KEYWORDS)
+
+
 def search_and_download(query: str) -> list[dict]:
+    allow_unlimited = _is_quran_request(query)
     # لو الرابط من سبوتفاي، نجيب اسم الأغنية وندور عليها في المصادر التانية
     if "open.spotify.com/track/" in query:
         import urllib.request, json
@@ -333,7 +351,7 @@ def search_and_download(query: str) -> list[dict]:
             if info:
                 if target.startswith("scsearch"):
                     logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s", query)
-                return _finish_search(info)
+                return _finish_search(info, allow_unlimited=allow_unlimited)
         except DownloadError as e:
             last_error = e
             logger.warning(f"Search failed on source '{target[:12]}...': {e}")
@@ -343,7 +361,7 @@ def search_and_download(query: str) -> list[dict]:
                 with YoutubeDL(fallback_opts) as ydl:
                     info = ydl.extract_info(target, download=False)
                 if info:
-                    return _finish_search(info)
+                    return _finish_search(info, allow_unlimited=allow_unlimited)
             except DownloadError as e2:
                 last_error = e2
                 continue
