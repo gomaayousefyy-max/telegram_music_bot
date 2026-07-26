@@ -1069,13 +1069,13 @@ async def post_init(application: Application) -> None:
             else:
                 raise
     
-await calls.start()
+    await calls.start()
     logger.info("✅ PyTgCalls started.")
     
     global _is_ready
     _is_ready = True
     
-_bot_ref = application.bot
+    _bot_ref = application.bot
     me = await application.bot.get_me()
     logger.info("✅ Bot is alive as @%s (ID: %s)", me.username, me.id)
     logger.info("------------------------------------------")
