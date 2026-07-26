@@ -194,7 +194,7 @@ def _ydl_opts() -> dict:
         "noplaylist": False,
         "nocheckcertificate": True,
         "geo_bypass": True,
-        "extract_flat": False,
+        "extract_flat": "in_playlist",
         "socket_timeout": 15,
         "retries": 1,
         "fragment_retries": 1,
@@ -444,7 +444,9 @@ async def play_next(chat_id: int) -> None:
                 chat_id=chat_id,
                 animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
-                reply_markup=get_player_buttons(state)
+                reply_markup=get_player_buttons(state),
+                read_timeout=30,
+                write_timeout=30
             )
             if not _cached_gif_file_id and msg.animation:
                 _cached_gif_file_id = msg.animation.file_id
@@ -453,7 +455,9 @@ async def play_next(chat_id: int) -> None:
             msg = await _bot_ref.send_message(
                 chat_id=chat_id,
                 text=text_msg,
-                reply_markup=get_player_buttons(state)
+                reply_markup=get_player_buttons(state),
+                read_timeout=30,
+                write_timeout=30
             )
         
         async with get_lock(chat_id):
@@ -593,7 +597,9 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 chat_id=chat_id,
                 animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
-                reply_markup=get_player_buttons(state)
+                reply_markup=get_player_buttons(state),
+                read_timeout=30,
+                write_timeout=30
             )
             if not _cached_gif_file_id and msg.animation:
                 _cached_gif_file_id = msg.animation.file_id
@@ -602,7 +608,9 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             msg = await _bot_ref.send_message(
                 chat_id=chat_id,
                 text=text_msg,
-                reply_markup=get_player_buttons(state)
+                reply_markup=get_player_buttons(state),
+                read_timeout=30,
+                write_timeout=30
             )
         await status.delete()
         
