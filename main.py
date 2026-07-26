@@ -114,8 +114,13 @@ def main() -> None:
         )
     )
 
-    # تشغيل البوت
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # تشغيل البوت مع مسح أي تحديثات معلقة لمنع تعارض getUpdates (حل نهائي لمشكلة Conflict)
+    application.run_polling(
+        drop_pending_updates=True,
+        poll_interval=2.0,
+        timeout=30,
+        allowed_updates=Update.ALL_TYPES
+    )
 
 
 if __name__ == "__main__":
