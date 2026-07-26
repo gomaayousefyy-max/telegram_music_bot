@@ -975,6 +975,14 @@ async def post_init(application: Application) -> None:
     global _bot_ref
     Config.validate()
     Config.ensure_dirs()
+    
+    # مسح أي تحديثات معلقة أو Webhook نشط قبل بدء البوت لمنع Conflict نهائياً
+    try:
+        await application.bot.delete_webhook(drop_pending_updates=True)
+        logger.info("✅ Webhook and pending updates dropped successfully.")
+    except Exception as e:
+        logger.warning("Failed to drop pending updates: %s", e)
+        
     logger.info("==========================================")
     logger.info("  Starting %s v%s", Config.BOT_NAME, Config.BOT_VERSION)
     logger.info("==========================================")
