@@ -745,12 +745,36 @@ async def volume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("❌ الصوت لازم يكون بين 1 و 200.")
         return
     try:
-        await calls.change_volume_call(chat_id, vol)
-        await update.message.reply_text(f"🔊 الصوت دلوقتي: {vol}%")
-    except AttributeError:
-        await update.message.reply_text("⚠️ تغيير الصوت أثناء التشغيل مش مدعوم في إصدار pytgcalls ده.\nحدّد DEFAULT_VOLUME في .env بدل ده.")
+        # نستخدم Pyrogram Raw API عشان نضمن إن الصوت بيتغير لحساب البوت نفسه للكل
+        from pyrogram.raw.functions.phone import EditGroupCallParticipant
+        from pyrogram.raw.types import InputGroupCall
+        from pyrogram.raw import functions
+        
+        me = await user_client.get_me()
+        me_peer = await user_client.resolve_peer(me.id)
+        peer = await user_client.resolve_peer(chat_id)
+        full_chat = await user_client.invoke(functions.channels.GetFullChannel(channel=peer))
+        group_call = full_chat.full_chat.call
+        
+        if group_call:
+            await user_client.invoke(
+                EditGroupCallParticipant(
+                    call=InputGroupCall(id=group_call.id, access_hash=group_call.access_hash),
+                    participant=me_peer,
+                    muted=False,
+                    volume=vol
+                )
+            )
+            await update.message.reply_text(f"🔊 الصوت دلوقتي: {vol}% (اتطبق على البوت للكل)")
+        else:
+            await update.message.reply_text("❌ مفيش مكالمة صوتية شغالة.")
     except Exception as e:
-        await update.message.reply_text(f"❌ {type(e).__name__}")
+        logger.warning("Volume change failed via Raw API, falling back to pytgcalls: %s", e)
+        try:
+            await calls.change_volume_call(chat_id, vol)
+            await update.message.reply_text(f"🔊 الصوت دلوقتي: {vol}%")
+        except Exception as e2:
+            await update.message.reply_text(f"❌ حصل خطأ أثناء تغيير الصوت: {type(e2).__name__}")
 
 async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     start = time.time()
@@ -915,12 +939,11 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         asyncio.create_task(play_next(chat_id))
 
     elif action == "player_stop":
-        state.clear()
-        try:
-            await calls.leave_call(chat_id)
-        except Exception:
-            pass
-        await bot_send(chat_id, "⏹️ تم إيقاف التشغيل ومسح الطابور.")
+        if not state.current:
+            await bot_send(chat_id, "⚠️ مفيش أغنية شغالة.")
+            return
+        await bot_send(chat_id, "⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
+        asyncio.create_task(play_next(chat_id))
 
     elif action == "player_seek_fwd":
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
