@@ -101,11 +101,34 @@ _download_executor = concurrent.futures.ThreadPoolExecutor(
 )
 
 _bot_ref = None
+_is_ready = False  # True فقط بعد ما user_client و calls يبدأوا بنجاح تام
 
 def get_lock(chat_id: int) -> asyncio.Lock:
     if chat_id not in _locks:
         _locks[chat_id] = asyncio.Lock()
     return _locks[chat_id]
+
+# ============================================================
+# (3.5) Health check HTTP server (لـ Railway Healthcheck)
+# ============================================================
+async def _health_handler(request):
+    from aiohttp import web
+    if _is_ready:
+        return web.Response(text="OK", status=200)
+    return web.Response(text="NOT_READY", status=503)
+
+async def start_health_server() -> None:
+    """يشغّل سيرفر HTTP بسيط عشان Railway يستنى فعلاً لحد ما البوت يبقى جاهز
+    قبل ما يقفل النسخة القديمة (بيحل مشكلة AUTH_KEY_DUPLICATED عند كل Deploy)."""
+    from aiohttp import web
+    app = web.Application()
+    app.router.add_get("/health", _health_handler)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", "8080"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info("✅ Health check server running on port %s (/health)", port)
 
 def get_state(chat_id: int) -> ChatState:
     return _states[chat_id]
@@ -1046,15 +1069,20 @@ async def post_init(application: Application) -> None:
             else:
                 raise
     
-    await calls.start()
+await calls.start()
     logger.info("✅ PyTgCalls started.")
     
-    _bot_ref = application.bot
+    global _is_ready
+    _is_ready = True
+    
+_bot_ref = application.bot
     me = await application.bot.get_me()
     logger.info("✅ Bot is alive as @%s (ID: %s)", me.username, me.id)
     logger.info("------------------------------------------")
     logger.info("البوت جاهز. ابعت /help في الجروب اللي فيه Voice Chat.")
     logger.info("------------------------------------------")
+    
+    asyncio.create_task(start_health_server())
 
 async def post_stop(application: Application) -> None:
     try:
