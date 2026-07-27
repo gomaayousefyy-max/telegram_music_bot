@@ -507,7 +507,10 @@ async def play_next(chat_id: int) -> None:
             state.now_playing_message_id = msg.message_id
             state.playback_start_time = time.time()
             state.elapsed_time_before_pause = 0.0
-            
+
+        # تشغيل التحميل المسبق للأغنية اللي بعدها في الخلفية
+        asyncio.create_task(_preload_next(chat_id))
+        
     except NoActiveGroupCall:
         async with get_lock(chat_id):
             state.current = None
