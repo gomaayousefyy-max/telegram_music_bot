@@ -403,6 +403,37 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         except Exception:
             pass
         raise
+
+
+async def _preload_next(chat_id: int) -> None:
+    """تحميل الأغنية اللي بعدها في الخلفية عشان تشتغل على طول من غير فترة صمت."""
+    state = get_state(chat_id)
+    next_track = None
+    async with get_lock(chat_id):
+        if not state.queue:
+            return
+        next_track = state.queue[0]
+        # لو الأغنية اتحملت قبل كده (كاش أو Preload سابق)، نسيبها
+        if next_track.file_path and os.path.exists(next_track.file_path):
+            return
+
+    loop = asyncio.get_running_loop()
+    try:
+        downloaded = await asyncio.wait_for(
+            loop.run_in_executor(_download_executor, _download_single, next_track.url),
+            timeout=30.0
+        )
+        async with get_lock(chat_id):
+            # نتأكد إن نفس الأغنية لسه في الطابور ومحدش سحبها أو غيرها
+            if state.queue and state.queue[0].url == next_track.url:
+                state.queue[0].file_path = downloaded["file_path"]
+                logger.info("✅ Preloaded next track: %s", next_track.title)
+    except Exception as e:
+        logger.warning("Preload failed for %s: %s", next_track.title, e)
+
+
+
+
 async def play_next(chat_id: int) -> None:
     async with get_lock(chat_id):
         state = get_state(chat_id)
@@ -633,7 +664,10 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             state.now_playing_message_id = msg.message_id
             state.playback_start_time = time.time()
             state.elapsed_time_before_pause = 0.0
-            
+
+        # تشغيل التحميل المسبق للأغنية اللي بعدها في الخلفية
+        asyncio.create_task(_preload_next(chat_id))
+        
     except NoActiveGroupCall:
         async with get_lock(chat_id):
             state.current = None
@@ -1016,6 +1050,17 @@ async def post_init(application: Application) -> None:
     global _bot_ref
     Config.validate()
     Config.ensure_dirs()
+    
+    # مسح أي ملفات صوتية متبقية من جلسات سابقة (Instant Cleanup at startup)
+    if os.path.exists(Config.DOWNLOAD_DIR):
+        for filename in os.listdir(Config.DOWNLOAD_DIR):
+            file_path = os.path.join(Config.DOWNLOAD_DIR, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except Exception:
+                pass
+        logger.info("✅ تم مسح الملفات الصوتية القديمة لتفادي امتلاء المساحة.")
     
     # مسح أي تحديثات معلقة أو Webhook نشط قبل بدء البوت لمنع Conflict نهائياً
     try:
