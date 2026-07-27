@@ -223,13 +223,6 @@ def _ydl_opts() -> dict:
         logger.info("✅ YouTube Cookies file loaded successfully.")
     else:
         logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
-        
-    # دعم البروكسي لتجاوز حظر يوتيوب لـ IP سيرفرات Railway
-    youtube_proxy = os.getenv("YOUTUBE_PROXY", "")
-    if youtube_proxy:
-        opts["proxy"] = youtube_proxy
-        logger.info("✅ YouTube Proxy is active.")
-
     return opts
 
 def _download_single(url: str) -> dict:
@@ -336,7 +329,14 @@ def search_and_download(query: str) -> list[dict]:
     last_error = None
     for target in sources:
         try:
-            with YoutubeDL(_ydl_opts()) as ydl:
+            current_opts = _ydl_opts()
+            # نطبق البروكسي على يوتيوب بس عشان لو وقع، ساوند كلاود تشتغل عادي
+            if target.startswith("ytsearch") or "youtube.com" in target or "youtu.be" in target:
+                youtube_proxy = os.getenv("YOUTUBE_PROXY", "")
+                if youtube_proxy:
+                    current_opts["proxy"] = youtube_proxy
+                    logger.info("✅ YouTube Proxy is active for this track.")
+            with YoutubeDL(current_opts) as ydl:
                 info = ydl.extract_info(target, download=False)
             if info:
                 if target.startswith("scsearch"):
