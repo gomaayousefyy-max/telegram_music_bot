@@ -17,6 +17,7 @@ from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram.error import Conflict
 from telegram.ext import (
     Application,
     ContextTypes,
@@ -195,10 +196,10 @@ def _ydl_opts() -> dict:
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": "in_playlist",
-        "socket_timeout": 15,
-        "retries": 1,
-        "fragment_retries": 1,
-        "extractor_retries": 1,
+        "socket_timeout": 5,
+        "retries": 0,
+        "fragment_retries": 0,
+        "extractor_retries": 0,
         "continuedl": True,
         "concurrent_fragment_downloads": 4,
         "postprocessors": [
@@ -423,7 +424,11 @@ async def play_next(chat_id: int) -> None:
         if not track.file_path or not os.path.exists(track.file_path):
             await bot_send(chat_id, f"⏳ جاري تحميل: {track.title} ...")
             loop = asyncio.get_running_loop()
-            downloaded = await loop.run_in_executor(_download_executor, _download_single, track.url)
+            # أضفنا Timeout 30 ثانية عشان لو ال loading علق، البوت يتجاوزه وما يعلقش
+            downloaded = await asyncio.wait_for(
+                loop.run_in_executor(_download_executor, _download_single, track.url),
+                timeout=30.0
+            )
             track.file_path = downloaded["file_path"]
             
         await _start_playback(chat_id, track)
@@ -540,7 +545,10 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
     
     try:
-        info_list = await download_async(query)
+        info_list = await asyncio.wait_for(download_async(query), timeout=30.0)
+    except asyncio.TimeoutError:
+        await status.edit_text("⌛️ أخد وقت طويل أوي في البحث/التحميل وتجاوز 30 ثانية. جرب تاني.")
+        return
     except Exception as e:
         await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
         return
@@ -691,8 +699,14 @@ async def skip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
+    # لو مفيش أغنية مسجلة في الحالة بس المكالمة شغالة، نعمل Leave عشان نحل مشكلة التعليق
     if not state.current:
-        await update.message.reply_text("⚠️ مفيش أغنية شغالة.")
+        try:
+            await calls.leave_call(chat_id)
+        except Exception:
+            pass
+        state.clear()
+        await update.message.reply_text("⏹️ مفيش حاجة شغالة، اتأكدت إن المكالمة اتقفلت والحالة اتنضفت.")
         return
     await update.message.reply_text("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها في الطابور.")
     asyncio.create_task(play_next(chat_id))
@@ -846,9 +860,20 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         
     elif data == "player_stop":
         if not state.current:
-            await query.edit_message_caption("⚠️ مفيش أغنية شغالة.")
+            try:
+                await calls.leave_call(chat_id)
+            except Exception:
+                pass
+            state.clear()
+            try:
+                await query.edit_message_caption("⏹️ مفيش حاجة شغالة، اتقفلت المكالمة واتنضفت.")
+            except Exception:
+                pass
             return
-        await query.edit_message_caption("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
+        try:
+            await query.edit_message_caption("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
+        except Exception:
+            pass
         asyncio.create_task(play_next(chat_id))
         
     elif data == "player_seek_fwd":
@@ -940,7 +965,12 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     elif action == "player_stop":
         if not state.current:
-            await bot_send(chat_id, "⚠️ مفيش أغنية شغالة.")
+            try:
+                await calls.leave_call(chat_id)
+            except Exception:
+                pass
+            state.clear()
+            await bot_send(chat_id, "⏹️ مفيش حاجة شغالة، اتقفلت المكالمة واتنضفت.")
             return
         await bot_send(chat_id, "⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
         asyncio.create_task(play_next(chat_id))
@@ -1054,6 +1084,11 @@ async def post_stop(application: Application) -> None:
 
 async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """يمسك أي خطأ مش متوقع في أي مكان في البوت، عشان البوت ميوقفش أبداً."""
+    # تجاهل تعارض getUpdates نهائياً (بيحصل وقت الـ Redeploy لما النسخة القديمة لسه بتموت)
+    if isinstance(context.error, Conflict):
+        logger.warning("⚠️ تعارض getUpdates (نسخة قديمة لسه بتموت). البوت هيتجاهل ويفضل شغال.")
+        return
+        
     logger.error("Unhandled exception: %s", context.error, exc_info=context.error)
     try:
         if isinstance(update, Update) and update.effective_chat:
