@@ -822,7 +822,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ============================================================
 async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.warning("Query answer failed (likely too old): %s", e)
+        return
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
     data = query.data
