@@ -223,6 +223,13 @@ def _ydl_opts() -> dict:
         logger.info("✅ YouTube Cookies file loaded successfully.")
     else:
         logger.warning("⚠️ YouTube Cookies file NOT FOUND! Bot may fail to download.")
+        
+    # دعم البروكسي لتجاوز حظر يوتيوب لـ IP سيرفرات Railway
+    youtube_proxy = os.getenv("YOUTUBE_PROXY", "")
+    if youtube_proxy:
+        opts["proxy"] = youtube_proxy
+        logger.info("✅ YouTube Proxy is active.")
+
     return opts
 
 def _download_single(url: str) -> dict:
