@@ -18,7 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # تثبيت Deno - مطلوب من yt-dlp لفك تشفير سيغنتشر يوتيوب (nsig/EJS)
 ENV DENO_INSTALL=/usr/local
-RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y
+ENV PATH="/usr/local/bin:${PATH}"
+RUN curl -fsSL https://deno.land/install.sh | sh -s -- -y \
+    && deno --version
 
 WORKDIR /app
 

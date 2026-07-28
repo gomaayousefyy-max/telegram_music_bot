@@ -328,7 +328,8 @@ def search_and_download(query: str) -> list[dict]:
         sources = [target]
     else:
         # نجيب 3 نتايج بحث عشان لو أول نتيجة فيديو بريميير أو مش متاح، نجاوز للألي بعدها
-        sources = [f"ytsearch3:{query.strip()}", f"scsearch3:{query.strip()}"]
+        # SoundCloud الأول عشان يوتيوب بيرجع 403 دايماً من Railway IP - نوفر وقت الفشل
+        sources = [f"scsearch3:{query.strip()}", f"ytsearch3:{query.strip()}"]
     last_error = None
     for target in sources:
         try:
