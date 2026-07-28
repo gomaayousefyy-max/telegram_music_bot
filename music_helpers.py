@@ -232,6 +232,9 @@ def _download_single(url: str) -> dict:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
     except DownloadError as e:
+        if "403" in str(e) or "Forbidden" in str(e):
+            logger.warning(f"تخطي المحاولة الاحتياطية بسبب حظر 403 من يوتيوب.")
+            raise
         logger.warning(f"Download failed with primary format: {e}")
         fallback_opts = _ydl_opts().copy()
         fallback_opts['format'] = 'bestaudio/best'
@@ -421,7 +424,7 @@ async def _preload_next(chat_id: int) -> None:
     try:
         downloaded = await asyncio.wait_for(
             loop.run_in_executor(_download_executor, _download_single, next_track.url),
-            timeout=30.0
+            timeout=60.0
         )
         async with get_lock(chat_id):
             # نتأكد إن نفس الأغنية لسه في الطابور ومحدش سحبها أو غيرها
@@ -465,7 +468,7 @@ async def play_next(chat_id: int) -> None:
             # أضفنا Timeout 30 ثانية عشان لو ال loading علق، البوت يتجاوزه وما يعلقش
             downloaded = await asyncio.wait_for(
                 loop.run_in_executor(_download_executor, _download_single, track.url),
-                timeout=30.0
+                timeout=60.0
             )
             track.file_path = downloaded["file_path"]
             
@@ -586,9 +589,9 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
     
     try:
-        info_list = await asyncio.wait_for(download_async(query), timeout=30.0)
+        info_list = await asyncio.wait_for(download_async(query), timeout=60.0)
     except asyncio.TimeoutError:
-        await status.edit_text("⌛️ أخد وقت طويل أوي في البحث/التحميل وتجاوز 30 ثانية. جرب تاني.")
+        await status.edit_text("⌛️ أخد وقت طويل أوي في البحث/التحميل وتجاوز 60 ثانية. جرب تاني.")        
         return
     except Exception as e:
         await status.edit_text(f"❌ مقدرتش ألاقي أو أحمل الأغنية.\nالسبب: {type(e).__name__}")
