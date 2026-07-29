@@ -402,7 +402,10 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    # -threads 1: تقليل استهلاك المعالج ومنع التزاحم عشان مفيش تقطيع
+    # -rtbufsize 64M: بافر كبير بيمنع التقطيع (Stuttering) لو فيه تأخير لحظي في القراءة من القرص
+    # -ac 2 -ar 48000: إجبار الصوت على ستيريو و 48kHz (نفس بصمة تيليجرام) لتنقية الصوت 100% بدون فلاتر
+    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -rtbufsize 64M -vn -ac 2 -ar 48000 -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
     audio_quality = (
         AudioQuality.HIGH if Config.AUDIO_QUALITY == "high" else AudioQuality.STUDIO
