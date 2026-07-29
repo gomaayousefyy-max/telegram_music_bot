@@ -327,15 +327,16 @@ def search_and_download(query: str) -> list[dict]:
         target = query.strip()
         sources = [target]
     else:
-        # نجيب 3 نتايج بحث عشان لو أول نتيجة فيديو بريميير أو مش متاح، نجاوز للألي بعدها
-        # SoundCloud الأول عشان يوتيوب بيرجع 403 دايماً من Railway IP - نوفر وقت الفشل
-        sources = [f"scsearch3:{query.strip()}", f"ytsearch3:{query.strip()}"]
+        # نجرب يوتيوب الأول بمهلة قصيرة (15 ثانية) عشان نتأكد هل لسه فاشل فعلاً ولا لأ
+        # لو فشل، نروح SoundCloud فوراً من غير ما نستنى طويل
+        sources = [f"ytsearch3:{query.strip()}", f"scsearch3:{query.strip()}"]
     last_error = None
     for target in sources:
+        is_youtube_source = target.startswith("ytsearch") or "youtube.com" in target or "youtu.be" in target
         try:
             current_opts = _ydl_opts()
-            # نطبق البروكسي على يوتيوب بس عشان لو وقع، ساوند كلاود تشتغل عادي
-            if target.startswith("ytsearch") or "youtube.com" in target or "youtu.be" in target:
+            if is_youtube_source:
+                current_opts["socket_timeout"] = 15
                 youtube_proxy = os.getenv("YOUTUBE_PROXY", "")
                 if youtube_proxy:
                     current_opts["proxy"] = youtube_proxy
@@ -343,21 +344,28 @@ def search_and_download(query: str) -> list[dict]:
             with YoutubeDL(current_opts) as ydl:
                 info = ydl.extract_info(target, download=False)
             if info:
-                if target.startswith("scsearch"):
-                    logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s", query)
+                if not is_youtube_source and last_error is not None:
+                    logger.info("🔄 اتحمل من SoundCloud بعد فشل يوتيوب: %s | سبب الفشل: %s", query, last_error)
                 return _finish_search(info)
         except DownloadError as e:
             last_error = e
-            logger.warning(f"Search failed on source '{target[:12]}...': {e}")
+            if is_youtube_source:
+                logger.warning("⚠️ فشل البحث/التحميل من يوتيوب: %s: %s", type(e).__name__, e)
+            else:
+                logger.warning("Search failed on source '%s...': %s", target[:12], e)
             try:
                 fallback_opts = _ydl_opts().copy()
                 fallback_opts['format'] = 'best'
+                if is_youtube_source:
+                    fallback_opts["socket_timeout"] = 15
                 with YoutubeDL(fallback_opts) as ydl:
                     info = ydl.extract_info(target, download=False)
                 if info:
                     return _finish_search(info)
             except DownloadError as e2:
                 last_error = e2
+                if is_youtube_source:
+                    logger.warning("⚠️ فشل يوتيوب حتى مع الفورمات الاحتياطي: %s: %s", type(e2).__name__, e2)
                 continue
 
     raise last_error or DownloadError("فشل التحميل من كل المصادر المتاحة.")
