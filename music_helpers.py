@@ -190,8 +190,10 @@ def _ydl_opts() -> dict:
     opts = {
         "format": Config.YDL_FORMAT,
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
+        "impersonate": "chrome",
         "quiet": True,
         "no_warnings": True,
+        
         "noplaylist": False,
         "nocheckcertificate": True,
         "geo_bypass": True,
