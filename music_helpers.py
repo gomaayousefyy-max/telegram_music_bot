@@ -347,7 +347,7 @@ def search_and_download(query: str) -> list[dict]:
         try:
             current_opts = _ydl_opts()
             if is_youtube_source:
-                current_opts["socket_timeout"] = 15
+                current_opts["socket_timeout"] = 5
                 youtube_proxy = os.getenv("YOUTUBE_PROXY", "")
                 if youtube_proxy:
                     current_opts["proxy"] = youtube_proxy
@@ -362,13 +362,16 @@ def search_and_download(query: str) -> list[dict]:
             last_error = e
             if is_youtube_source:
                 logger.warning("⚠️ فشل البحث/التحميل من يوتيوب: %s: %s", type(e).__name__, e)
+                # لو الحظر 403، يوتيوب قافل الـ IP، مفيش لازمة نجرب الفورمات الاحتياطي عشان نوفر وقت
+                if "403" in str(e) or "Forbidden" in str(e):
+                    continue
             else:
                 logger.warning("Search failed on source '%s...': %s", target[:12], e)
             try:
                 fallback_opts = _ydl_opts().copy()
                 fallback_opts['format'] = 'best'
                 if is_youtube_source:
-                    fallback_opts["socket_timeout"] = 15
+                    fallback_opts["socket_timeout"] = 5 # تقليل المهلة لـ 5 ثواني بدل 15
                 with YoutubeDL(fallback_opts) as ydl:
                     info = ydl.extract_info(target, download=False)
                 if info:
