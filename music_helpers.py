@@ -339,7 +339,8 @@ def search_and_download(query: str) -> list[dict]:
     else:
         # نجرب يوتيوب الأول بمهلة قصيرة (15 ثانية) عشان نتأكد هل لسه فاشل فعلاً ولا لأ
         # لو فشل، نروح SoundCloud فوراً من غير ما نستنى طويل
-        sources = [f"ytsearch3:{query.strip()}", f"scsearch3:{query.strip()}"]
+        # تجربة نتيجة واحدة فقط من يوتيوب (ytsearch1) عشان لو فيه حظر 403، البوت ينتقل لـ SoundCloud بسرعة جداً بدون تأخير
+        sources = [f"ytsearch1:{query.strip()}", f"scsearch1:{query.strip()}"]
     last_error = None
     for target in sources:
         is_youtube_source = target.startswith("ytsearch") or "youtube.com" in target or "youtu.be" in target
@@ -403,9 +404,8 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
     # -threads 1: تقليل استهلاك المعالج ومنع التزاحم عشان مفيش تقطيع
-    # -rtbufsize 64M: بافر كبير بيمنع التقطيع (Stuttering) لو فيه تأخير لحظي في القراءة من القرص
-    # -ac 2 -ar 48000: إجبار الصوت على ستيريو و 48kHz (نفس بصمة تيليجرام) لتنقية الصوت 100% بدون فلاتر
-    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -rtbufsize 64M -vn -ac 2 -ar 48000 -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    # ممنوع نستخدم -ac 2 -ar 48000 لأنها بتعمل كراش صامت مع ملفات SoundCloud المتجزئة
+    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
     
     audio_quality = (
         AudioQuality.HIGH if Config.AUDIO_QUALITY == "high" else AudioQuality.STUDIO
