@@ -98,7 +98,7 @@ _states: dict[int, ChatState] = defaultdict(ChatState)
 _locks: dict[int, asyncio.Lock] = {}
 
 _download_executor = concurrent.futures.ThreadPoolExecutor(
-    max_workers=3, thread_name_prefix="ytdl"
+    max_workers=1, thread_name_prefix="ytdl"
 )
 
 _bot_ref = None
@@ -201,7 +201,7 @@ def _ydl_opts() -> dict:
         "fragment_retries": 0,
         "extractor_retries": 0,
         "continuedl": True,
-        "concurrent_fragment_downloads": 4,
+        "concurrent_fragment_downloads": 2,
         "postprocessors": [
             {
                 "key": "FFmpegExtractAudio",
