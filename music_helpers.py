@@ -98,7 +98,7 @@ _states: dict[int, ChatState] = defaultdict(ChatState)
 _locks: dict[int, asyncio.Lock] = {}
 
 _download_executor = concurrent.futures.ThreadPoolExecutor(
-    max_workers=1, thread_name_prefix="ytdl"
+    max_workers=3, thread_name_prefix="ytdl"
 )
 
 _bot_ref = None
@@ -433,6 +433,11 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
             await calls.leave_call(chat_id)
         except Exception:
             pass
+        # تنظيف الحالة فوراً عشان البوت يقدر يستقبل أوامر جديدة بدون Hang
+        state = get_state(chat_id)
+        state.is_playing = False
+        state.is_paused = False
+        state.current = None
         raise
 
 
@@ -612,7 +617,24 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not query:
         await update.message.reply_text("❌ اكتب اسم الأغنية أو رابط يوتيوب.")
         return
-        
+
+    # 1. التحقق هل البوت شغال في جروب تاني حالياً
+    for cid, c_state in _states.items():
+        if cid != chat_id and (c_state.is_playing or c_state.is_paused):
+            await update.message.reply_text("⚠️ البوت شغال دلوقتي في جروب تاني.\nخلص الأغنية هناك أو اعمل /stop وبعدين شغل هنا.")
+            return
+
+    # 2. التأكد من أن الحساب المساعد داخل في الجروب، ولو مش موجود ينضم تلقائياً
+    try:
+        await user_client.get_chat(chat_id)
+    except Exception:
+        try:
+            await user_client.join_chat(chat_id)
+            logger.info(f"Userbot auto-joined chat {chat_id}")
+        except Exception:
+            await update.message.reply_text("❌ الحساب المساعد مش موجود في الجروب ومقدرش يدخل لحاله.\nضيف الحساب للجروب يدويًا واكتب /play تاني.")
+            return
+
     user_name = fmt_user(update.effective_user)
     status = await update.effective_chat.send_message(f"🔍 بدور على: {query} ...")
     
