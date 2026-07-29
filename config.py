@@ -43,8 +43,14 @@ class Config:
     # "bestaudio/best" = أي صوت متاح بأعلى جودة (بدون تقييد بصيغة معينة)
     # ⚠️ مفيش env var YDL_FORMAT في Railway عشان ميلغي الكود ده
     YDL_FORMAT: str = os.getenv(
-        "YDL_FORMAT", "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best"
+        "YDL_FORMAT",
+        "bestaudio[acodec=opus]/bestaudio[ext=webm]/bestaudio[ext=m4a]/bestaudio/best",
     )
+
+    # جودة الصوت وقت البث اللحظي في المكالمة: studio (48kHz، أعلى استهلاك معالج)
+    # أو high (استهلاك معالج أقل، فرق بسيط جداً بالأذن العادية)
+    # لو التقطيع مستمر بعد تخفيف التحميل بالخلفية، غيّرها لـ "high" في .env
+    AUDIO_QUALITY: str = os.getenv("AUDIO_QUALITY", "studio").strip().lower()
 
     # مستوى الصوت الافتراضي (0 - 200)  | 100 = طبيعي
     DEFAULT_VOLUME: int = int(os.getenv("DEFAULT_VOLUME", "100"))

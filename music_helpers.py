@@ -392,11 +392,18 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
         logger.warning("resolve_peer فشل لـ %s: %s", chat_id, type(e).__name__)
     
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
-    ffmpeg_params = f"{seek_param}-nostdin -threads 0 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    ffmpeg_params = (
+        f"{seek_param}-nostdin -threads 0 -vn -fflags +genpts+igndts "
+        f"-avoid_negative_ts make_zero "
+        f"-af aresample=async=1:min_hard_comp=0.100000:first_pts=0"
+    )
     
+    audio_quality = (
+        AudioQuality.HIGH if Config.AUDIO_QUALITY == "high" else AudioQuality.STUDIO
+    )
     stream = MediaStream(
         track.file_path,
-        audio_parameters=AudioQuality.STUDIO,
+        audio_parameters=audio_quality,
         ffmpeg_parameters=ffmpeg_params
     )
     try:
