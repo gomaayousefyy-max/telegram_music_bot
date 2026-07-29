@@ -261,6 +261,16 @@ def _download_single(url: str) -> dict:
                 "⚠️ الملف ناقص محتمل: %s (%.2f MB لمدة %s ثانية)",
                 filename, size_mb, duration,
             )
+        # لو المدة قصيرة جداً (أقل من 40 ثانية)، غالباً ده مقطع معاينة (preview)
+        # مش الأغنية كاملة - نرفضه عشان الكود يدور على نتيجة تانية بدل ما يشغّله
+        if 0 < duration < 40:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+            raise DownloadError(
+                f"الملف قصير جداً ({duration} ثانية) - غالباً معاينة مش الأغنية كاملة."
+            )
     return {
         "title": info.get("title", "Unknown"),
         "duration": duration,
