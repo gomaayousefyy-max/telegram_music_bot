@@ -268,6 +268,9 @@ def _download_single(url: str) -> dict:
                 os.remove(filename)
             except OSError:
                 pass
+            raise DownloadError(
+                f"الملف قصير جداً ({duration} ثانية) - غالباً معاينة مش الأغنية كاملة."
+            )
         if duration > Config.MAX_DURATION:
             try:
                 os.remove(filename)
