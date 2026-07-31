@@ -16,7 +16,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Conflict
 from telegram.ext import (
     Application,
@@ -128,7 +128,7 @@ calls = PyTgCalls(user_client, cache_duration=100)
 # (5) Helpers
 # ============================================================
 URL_RE = re.compile(
-    r"^(https?://)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com|soundcloud\.com)/.+$",
+    r"^(https?://)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com|soundcloud\.com|on\.soundcloud\.com|m\.soundcloud\.com)/.+$",
     re.IGNORECASE,
 )
 
@@ -268,8 +268,13 @@ def _download_single(url: str) -> dict:
                 os.remove(filename)
             except OSError:
                 pass
+        if duration > Config.MAX_DURATION:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
             raise DownloadError(
-                f"الملف قصير جداً ({duration} ثانية) - غالباً معاينة مش الأغنية كاملة."
+                f"المدة ({fmt_duration(duration)}) بتتجاوز الحد الأقصى ({fmt_duration(Config.MAX_DURATION)})."
             )
     return {
         "title": info.get("title", "Unknown"),
@@ -505,6 +510,7 @@ async def play_next(chat_id: int) -> None:
             )
             track.file_path = downloaded["file_path"]
             
+        state.playback_start_time = time.time()
         await _start_playback(chat_id, track)
         
         if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
@@ -682,6 +688,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             
     track = state.current
     try:
+        state.playback_start_time = time.time()
         await _start_playback(chat_id, track)
         if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
             try:
@@ -764,6 +771,7 @@ async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     try:
         await calls.pause(chat_id)
+        state.elapsed_time_before_pause += time.time() - state.playback_start_time
         state.is_paused = True
         state.is_playing = False
         await update.message.reply_text("⏸️ الأغنية اتوقفت مؤقتاً. اكتب /resume عشان تكمل.")
@@ -780,6 +788,7 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await calls.resume(chat_id)
         state.is_paused = False
         state.is_playing = True
+        state.playback_start_time = time.time()
         await update.message.reply_text("▶️ كملنا التشغيل.")
     except Exception as e:
         await update.message.reply_text(f"❌ {type(e).__name__}")
