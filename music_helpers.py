@@ -192,7 +192,7 @@ def _ydl_opts() -> dict:
         "outtmpl": os.path.join(Config.DOWNLOAD_DIR, "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
-        "noplaylist": False,
+        "noplaylist": True,
         "nocheckcertificate": True,
         "geo_bypass": True,
         "extract_flat": "in_playlist",
@@ -1081,11 +1081,15 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         new_time = int(current_elapsed) + 10
         if new_time < state.current.duration:
             state.is_seeking = True
-            await _start_playback(chat_id, state.current, start_time=new_time)
-            state.playback_start_time = time.time()
-            state.elapsed_time_before_pause = new_time
-            state.is_playing = True
-            state.is_paused = False
+            try:
+                await _start_playback(chat_id, state.current, start_time=new_time)
+                state.playback_start_time = time.time()
+                state.elapsed_time_before_pause = new_time
+                state.is_playing = True
+                state.is_paused = False
+            except Exception as e:
+                logger.warning("Seek forward failed (webapp): %s", e)
+                state.is_seeking = False
         else:
             await bot_send(chat_id, "⚠️ وصلنا لنهاية الأغنية.")
 
@@ -1093,12 +1097,15 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = max(0, int(current_elapsed) - 10)
         state.is_seeking = True
-        await _start_playback(chat_id, state.current, start_time=new_time)
-        state.playback_start_time = time.time()
-        state.elapsed_time_before_pause = new_time
-        state.is_playing = True
-        state.is_paused = False
-
+        try:
+            await _start_playback(chat_id, state.current, start_time=new_time)
+            state.playback_start_time = time.time()
+            state.elapsed_time_before_pause = new_time
+            state.is_playing = True
+            state.is_paused = False
+        except Exception as e:
+            logger.warning("Seek backward failed (webapp): %s", e)
+            state.is_seeking = False
 # ============================================================
 # (10) Startup / Shutdown
 # ============================================================
@@ -1199,6 +1206,11 @@ async def global_error_handler(update: object, context: ContextTypes.DEFAULT_TYP
     # تجاهل تعارض getUpdates نهائياً (بيحصل وقت الـ Redeploy لما النسخة القديمة لسه بتموت)
     if isinstance(context.error, Conflict):
         logger.warning("⚠️ تعارض getUpdates (نسخة قديمة لسه بتموت). البوت هيتجاهل ويفضل شغال.")
+        return
+
+    from telegram.error import BadRequest
+    if isinstance(context.error, BadRequest) and "not modified" in str(context.error).lower():
+        logger.debug("⚠️ محاولة تعديل رسالة بنفس المحتوى (تم التجاهل بهدوء).")
         return
         
     logger.error("Unhandled exception: %s", context.error, exc_info=context.error)
