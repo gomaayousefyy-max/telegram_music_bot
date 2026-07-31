@@ -128,7 +128,7 @@ calls = PyTgCalls(user_client, cache_duration=100)
 # (5) Helpers
 # ============================================================
 URL_RE = re.compile(
-    r"^(https?://)?(www.)?(youtube.com|youtu.be|m.youtube.com)/.+$",
+    r"^(https?://)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com|soundcloud\.com)/.+$",
     re.IGNORECASE,
 )
 
@@ -521,7 +521,7 @@ async def play_next(chat_id: int) -> None:
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
+                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),                
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
@@ -697,7 +697,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
+                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),                
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
