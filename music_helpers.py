@@ -819,21 +819,6 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     await update.message.reply_text("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها في الطابور.")
     asyncio.create_task(play_next(chat_id))
-    
-async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-    state = get_state(chat_id)
-    # لو مفيش أغنية مسجلة في الحالة بس المكالمة شغالة، نعمل Leave عشان نحل مشكلة التعليق
-    if not state.current:
-        try:
-            await calls.leave_call(chat_id)
-        except Exception:
-            pass
-        state.clear()
-        await update.message.reply_text("⏹️ مفيش حاجة شغالة، اتأكدت إن المكالمة اتقفلت والحالة اتنضفت.")
-        return
-    await update.message.reply_text("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها في الطابور.")
-    asyncio.create_task(play_next(chat_id))
 
 async def force_leave_other_chats(exclude_chat_id: int) -> None:
     """يقفل البوت من أي جروب تاني عشان الأدمن يقدر يشغله عنده."""
@@ -844,7 +829,9 @@ async def force_leave_other_chats(exclude_chat_id: int) -> None:
                 await calls.leave_call(cid)
             except Exception:
                 pass
-            c_state.clear()    
+            c_state.clear()
+
+async def leave_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
     state.clear()
