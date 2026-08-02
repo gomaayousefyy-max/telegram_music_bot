@@ -12,7 +12,7 @@ from telegram.ext import (
     filters,
 )
 from config import Config
-
+from admin_panel import setup_admin_handlers
 # استيراد كل الدوال والـ Clients من ملف الإضافات
 from music_helpers import (
     post_init,
@@ -63,7 +63,10 @@ def main() -> None:
     # تسجيل الـ Handler بتاع الأزرار التفاعلية
     application.add_handler(CallbackQueryHandler(player_callback_handler, pattern="^player_"))
     application.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, web_app_data_handler))
-
+    
+    # تشغيل لوحة تحكم الأدمن
+    setup_admin_handlers(application)
+    
     # أوامر عربي عبر MessageHandler (لأن PTB مابيقبلش عربي في CommandHandler)
     arabic_commands = {
         "تشغيل": play_command,
