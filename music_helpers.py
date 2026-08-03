@@ -16,7 +16,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.error import Conflict
 from telegram.ext import (
     Application,
@@ -128,7 +128,7 @@ calls = PyTgCalls(user_client, cache_duration=100)
 # (5) Helpers
 # ============================================================
 URL_RE = re.compile(
-    r"^(https?://)?(www\.)?(youtube\.com|youtu\.be|m\.youtube\.com|soundcloud\.com|on\.soundcloud\.com|m\.soundcloud\.com)/.+$",
+    r"^(https?://)?(www.)?(youtube.com|youtu.be|m.youtube.com)/.+$",
     re.IGNORECASE,
 )
 
@@ -270,14 +270,6 @@ def _download_single(url: str) -> dict:
                 pass
             raise DownloadError(
                 f"الملف قصير جداً ({duration} ثانية) - غالباً معاينة مش الأغنية كاملة."
-            )
-        if duration > Config.MAX_DURATION:
-            try:
-                os.remove(filename)
-            except OSError:
-                pass
-            raise DownloadError(
-                f"المدة ({fmt_duration(duration)}) بتتجاوز الحد الأقصى ({fmt_duration(Config.MAX_DURATION)})."
             )
     return {
         "title": info.get("title", "Unknown"),
@@ -513,7 +505,6 @@ async def play_next(chat_id: int) -> None:
             )
             track.file_path = downloaded["file_path"]
             
-        state.playback_start_time = time.time()
         await _start_playback(chat_id, track)
         
         if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
@@ -530,7 +521,7 @@ async def play_next(chat_id: int) -> None:
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),                
+                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
@@ -691,7 +682,6 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             
     track = state.current
     try:
-        state.playback_start_time = time.time()
         await _start_playback(chat_id, track)
         if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
             try:
@@ -707,7 +697,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),                
+                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
@@ -774,7 +764,6 @@ async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     try:
         await calls.pause(chat_id)
-        state.elapsed_time_before_pause += time.time() - state.playback_start_time
         state.is_paused = True
         state.is_playing = False
         await update.message.reply_text("⏸️ الأغنية اتوقفت مؤقتاً. اكتب /resume عشان تكمل.")
@@ -791,7 +780,6 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await calls.resume(chat_id)
         state.is_paused = False
         state.is_playing = True
-        state.playback_start_time = time.time()
         await update.message.reply_text("▶️ كملنا التشغيل.")
     except Exception as e:
         await update.message.reply_text(f"❌ {type(e).__name__}")
@@ -819,18 +807,7 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     await update.message.reply_text("⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها في الطابور.")
     asyncio.create_task(play_next(chat_id))
-
-async def force_leave_other_chats(exclude_chat_id: int) -> None:
-    """يقفل البوت من أي جروب تاني عشان الأدمن يقدر يشغله عنده."""
-    for cid, c_state in list(_states.items()):
-        if cid != exclude_chat_id and (c_state.is_playing or c_state.is_paused):
-            logger.info(f"Admin forcing leave from chat {cid}")
-            try:
-                await calls.leave_call(cid)
-            except Exception:
-                pass
-            c_state.clear()
-
+    
 async def leave_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
