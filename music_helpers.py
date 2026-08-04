@@ -934,6 +934,18 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         except Exception:
             pass
         return
+
+    user_name = fmt_user(query.from_user)
+    action_map = {
+        "player_pause_resume": "إيقاف مؤقت/تشغيل",
+        "player_skip": "تخطي",
+        "player_stop": "إيقاف",
+        "player_seek_fwd": "تقديم 10 ثواني",
+        "player_seek_back": "تأخير 10 ثواني"
+    }
+    action_name = action_map.get(data)
+    if action_name:
+        await context.bot.send_message(chat_id=chat_id, text=f"🎛️ {action_name} تم الضغط بواسطة: {user_name}")
         
     if not state.current:
         await query.edit_message_caption("⚠️ مفيش أغنية شغالة دلوقتي.", reply_markup=get_player_buttons(state))
@@ -1045,6 +1057,18 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     if not state.current:
         await bot_send(chat_id, "⚠️ مفيش أغنية شغالة دلوقتي.")
         return
+
+    user_name = fmt_user(update.effective_user)
+    action_map = {
+        "player_pause_resume": "إيقاف مؤقت/تشغيل",
+        "player_skip": "تخطي",
+        "player_stop": "إيقاف",
+        "player_seek_fwd": "تقديم 10 ثواني",
+        "player_seek_back": "تأخير 10 ثواني"
+    }
+    action_name = action_map.get(action)
+    if action_name:
+        await bot_send(chat_id, f"🎛️ {action_name} تم الضغط بواسطة: {user_name}")
 
     if action == "player_pause_resume":
         try:
