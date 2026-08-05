@@ -1,19 +1,14 @@
-import os
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
-
-# استيراد الدوال اللي هنضيفها في الخطوة التالية
+from config import Config
 from music_helpers import force_leave_other_chats, get_active_chats_info
 
 logger = logging.getLogger("music_bot.admin")
 
-# قراءة آيدي الأدمن من متغيرات البيئة
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-
 async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """هاندلر أمر /admin - بيفتح لوحة التحكم للأدمن بس."""
-    if update.effective_user.id != ADMIN_ID:
+    if update.effective_user.id not in Config.ADMIN_IDS:
         return
         
     text = await get_active_chats_info()
@@ -31,7 +26,7 @@ async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     
     # حماية: لو المشهور مش الأدمن، نرفض ونموت
-    if query.from_user.id != ADMIN_ID:
+    if query.from_user.id not in Config.ADMIN_IDS:
         await query.answer("🚫 مينفعش، دي لوحة تحكم الأدمن بس.", show_alert=True)
         return
         
