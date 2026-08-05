@@ -16,7 +16,7 @@ from pytgcalls.exceptions import NoActiveGroupCall
 from pytgcalls.filters import chat_update, stream_end
 from pytgcalls.types import ChatUpdate, StreamEnded
 from pytgcalls.types.stream import AudioQuality, MediaStream
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import Conflict
 from telegram.ext import (
     Application,
@@ -128,7 +128,7 @@ calls = PyTgCalls(user_client, cache_duration=100)
 # (5) Helpers
 # ============================================================
 URL_RE = re.compile(
-    r"^(https?://)?(www.)?(youtube.com|youtu.be|m.youtube.com)/.+$",
+    r"^(https?://)?(www.)?(youtube.com|youtu.be|m.youtube.com|soundcloud.com|on.soundcloud.com|m.soundcloud.com)/.+$",
     re.IGNORECASE,
 )
 
@@ -251,8 +251,15 @@ def _download_single(url: str) -> dict:
                 filename = candidate
                 break
     duration = int(info.get("duration") or 0)
+    if duration > Config.MAX_DURATION:
+        try:
+            os.remove(filename)
+        except OSError:
+            pass
+        raise DownloadError(f"المدة {duration} ثانية بتتجاوز أقصى مدة مسموح بيها ({Config.MAX_DURATION}).")
 
     if os.path.exists(filename):
+        
         size_mb = os.path.getsize(filename) / (1024 * 1024)
         # فحص تقريبي: أقل من 0.05 ميجا لكل دقيقة معناه الملف ناقص/فاسد
         expected_min_mb = (duration / 60) * 0.05
@@ -503,11 +510,12 @@ async def play_next(chat_id: int) -> None:
                 loop.run_in_executor(_download_executor, _download_single, track.url),
                 timeout=60.0
             )
-            track.file_path = downloaded["file_path"]
-            
-        await _start_playback(chat_id, track)
+        track.file_path = downloaded["file_path"]
         
-        if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
+    state.playback_start_time = time.time()
+    await _start_playback(chat_id, track)
+    
+    if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
             try:
                 await _bot_ref.send_sticker(chat_id, Config.NOW_PLAYING_STICKER)
             except Exception as e:
@@ -521,7 +529,7 @@ async def play_next(chat_id: int) -> None:
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
+                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
@@ -541,7 +549,6 @@ async def play_next(chat_id: int) -> None:
         
         async with get_lock(chat_id):
             state.now_playing_message_id = msg.message_id
-            state.playback_start_time = time.time()
             state.elapsed_time_before_pause = 0.0
 
         # تشغيل التحميل المسبق للأغنية اللي بعدها في الخلفية
@@ -682,7 +689,9 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             
     track = state.current
     try:
+        state.playback_start_time = time.time()
         await _start_playback(chat_id, track)
+        
         if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
             try:
                 await _bot_ref.send_sticker(chat_id, Config.NOW_PLAYING_STICKER)
@@ -697,7 +706,7 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             global _cached_gif_file_id
             msg = await _bot_ref.send_animation(
                 chat_id=chat_id,
-                animation=_cached_gif_file_id or (open(MUSIC_GIF_PATH, "rb") if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
+                animation=_cached_gif_file_id or (MUSIC_GIF_PATH if os.path.exists(MUSIC_GIF_PATH) else MUSIC_GIF_URL),
                 caption=text_msg,
                 reply_markup=get_player_buttons(state),
                 read_timeout=30,
@@ -718,9 +727,8 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         async with get_lock(chat_id):
             state.now_playing_message_id = msg.message_id
-            state.playback_start_time = time.time()
             state.elapsed_time_before_pause = 0.0
-
+            
         # تشغيل التحميل المسبق للأغنية اللي بعدها في الخلفية
         asyncio.create_task(_preload_next(chat_id))
         
@@ -1007,8 +1015,11 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             except Exception as e:
                 logger.warning("Seek forward failed: %s", e)
                 state.is_seeking = False
+                state.is_playing = False
+                state.current = None
             try:
                 await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+                
             except Exception:
                 pass
         else:
@@ -1034,8 +1045,11 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         except Exception as e:
             logger.warning("Seek backward failed: %s", e)
             state.is_seeking = False
+            state.is_playing = False
+            state.current = None
         try:
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
+            
         except Exception:
             pass
 import json as _json
@@ -1114,7 +1128,10 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception as e:
                 logger.warning("Seek forward failed (webapp): %s", e)
                 state.is_seeking = False
+                state.is_playing = False
+                state.current = None
         else:
+            
             await bot_send(chat_id, "⚠️ وصلنا لنهاية الأغنية.")
 
     elif action == "player_seek_back":
@@ -1130,6 +1147,9 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         except Exception as e:
             logger.warning("Seek backward failed (webapp): %s", e)
             state.is_seeking = False
+            state.is_playing = False
+            state.current = None
+            
 # ============================================================
 # (9.6) Admin Panel Helpers
 # ============================================================
