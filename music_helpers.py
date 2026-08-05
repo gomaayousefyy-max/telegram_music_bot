@@ -510,12 +510,12 @@ async def play_next(chat_id: int) -> None:
                 loop.run_in_executor(_download_executor, _download_single, track.url),
                 timeout=60.0
             )
-        track.file_path = downloaded["file_path"]
+            track.file_path = downloaded["file_path"]
+            
+        state.playback_start_time = time.time()
+        await _start_playback(chat_id, track)
         
-    state.playback_start_time = time.time()
-    await _start_playback(chat_id, track)
-    
-    if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
+        if hasattr(Config, 'NOW_PLAYING_STICKER') and Config.NOW_PLAYING_STICKER:
             try:
                 await _bot_ref.send_sticker(chat_id, Config.NOW_PLAYING_STICKER)
             except Exception as e:
