@@ -31,6 +31,7 @@ from music_helpers import (
     web_app_data_handler,      # ← جديد
     global_error_handler,
 )
+from admin_panel import setup_admin_handlers
 
 # ============================================================
 # Main entry point
@@ -46,8 +47,11 @@ def main() -> None:
     
     application.add_error_handler(global_error_handler)
 
-    # تسجيل الأوامر (عربي + إنجليزي)
+    # تسجيل لوحة تحكم الأدمن
+    setup_admin_handlers(application)
 
+    # تسجيل الأوامر (عربي + إنجليزي)
+    
     # أوامر إنجليزي بس (Telegram مابيقبلش عربي في CommandHandler)
     application.add_handler(CommandHandler(["play", "p"], play_command))
     application.add_handler(CommandHandler(["pause", "pau"], pause_command))
