@@ -1131,6 +1131,39 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             logger.warning("Seek backward failed (webapp): %s", e)
             state.is_seeking = False
 # ============================================================
+# (9.6) Admin Panel Helpers
+# ============================================================
+async def force_leave_other_chats(exclude_chat_id: int = 0) -> None:
+    """تفصل البوت من أي جروب شغال فيه حالياً (ما عدا الجروب المحدد إن وجد)."""
+    for cid, c_state in list(_states.items()):
+        if cid != exclude_chat_id and (c_state.is_playing or c_state.is_paused):
+            try:
+                await calls.leave_call(cid)
+            except Exception:
+                pass
+            c_state.clear()
+            await bot_send(cid, "⚠️ تم فصل البوت من هنا بأمر من الأدمن لتشغيله في مكان آخر.")
+            logger.info("Forced leave from chat %s by admin.", cid)
+
+async def get_active_chats_info() -> str:
+    """بترجع نص فيه أسماء الجروبات اللي البوت شغال فيها حالياً والأغاني المشغلة."""
+    active_chats = []
+    for cid, c_state in _states.items():
+        if c_state.is_playing or c_state.is_paused:
+            try:
+                chat = await _bot_ref.get_chat(cid)
+                chat_name = chat.title or chat.first_name or str(cid)
+                status = "▶️ شغال" if c_state.is_playing else "⏸️ متوقف"
+                song_title = c_state.current.title if c_state.current else "مش معروف"
+                active_chats.append(f"📱 {chat_name}\n   - الحالة: {status}\n   - الأغنية: {song_title}")
+            except Exception:
+                active_chats.append(f"شات غير معروف ({cid})")
+    
+    if not active_chats:
+        return "🟢 البوت مش شغال في أي جروب دلوقتي.\n\nتقدر تشغله في أي مكان براحتك."
+    return "📋 **البوت شغال حالياً في:**\n\n" + "\n\n".join(active_chats)
+
+# ============================================================
 # (10) Startup / Shutdown
 # ============================================================
 async def post_init(application: Application) -> None:
