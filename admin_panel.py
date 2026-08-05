@@ -8,7 +8,16 @@ logger = logging.getLogger("music_bot.admin")
 
 async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """هاندلر أمر /admin - بيفتح لوحة التحكم للأدمن بس."""
-    if update.effective_user.id not in Config.ADMIN_IDS:
+    # دعم ADMIN_ID سواء كان رقم، نص، أو قائمة لتفادي تعطل اللوحة
+    admin_ids = getattr(Config, "ADMIN_IDS", getattr(Config, "ADMIN_ID", []))
+    if isinstance(admin_ids, int):
+        admin_ids = [admin_ids]
+    elif isinstance(admin_ids, str):
+        admin_ids = [int(x) for x in admin_ids.split() if x.isdigit()]
+    elif isinstance(admin_ids, list):
+        admin_ids = [int(x) if isinstance(x, str) else x for x in admin_ids]
+
+    if update.effective_user.id not in admin_ids:
         return
         
     text = await get_active_chats_info()
@@ -20,15 +29,25 @@ async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     await update.message.reply_text(text, reply_markup=reply_markup)
+    
 
 async def admin_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """هاندلر أزرار لوحة الأدمن."""
     query = update.callback_query
     
     # حماية: لو المشهور مش الأدمن، نرفض ونموت
-    if query.from_user.id not in Config.ADMIN_IDS:
+    admin_ids = getattr(Config, "ADMIN_IDS", getattr(Config, "ADMIN_ID", []))
+    if isinstance(admin_ids, int):
+        admin_ids = [admin_ids]
+    elif isinstance(admin_ids, str):
+        admin_ids = [int(x) for x in admin_ids.split() if x.isdigit()]
+    elif isinstance(admin_ids, list):
+        admin_ids = [int(x) if isinstance(x, str) else x for x in admin_ids]
+
+    if query.from_user.id not in admin_ids:
         await query.answer("🚫 مينفعش، دي لوحة تحكم الأدمن بس.", show_alert=True)
         return
+        
         
     await query.answer()
     data = query.data
