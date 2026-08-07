@@ -202,13 +202,8 @@ def _ydl_opts() -> dict:
         "extractor_retries": 0,
         "continuedl": True,
         "concurrent_fragment_downloads": 2,
-        "postprocessors": [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "opus",
-                "preferredquality": "192",
-            }
-        ],
+        
+        # تم إلغاء التشفير المزدوج هنا عشان نحافظ على نقاء الصوت ونقلل استهلاك المعالج
         "extractor_args": {
             "youtube": {
                 "player_client": ["tv", "android", "web"],
@@ -418,7 +413,8 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     seek_param = f"-ss {start_time} " if start_time > 0 else ""
     # -threads 1: تقليل استهلاك المعالج ومنع التزاحم عشان مفيش تقطيع
     # ممنوع نستخدم -ac 2 -ar 48000 لأنها بتعمل كراش صامت مع ملفات SoundCloud المتجزئة
-    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
+    # إضافة -c:a libopus -b:a 192k -vbr on: عشان يتعمل تشفير مرة واحدة بس بنقاء استوديو عالي من غير ما نأثر على السرعة
+    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero -c:a libopus -b:a 192k -vbr on"
     
     audio_quality = (
         AudioQuality.HIGH if Config.AUDIO_QUALITY == "high" else AudioQuality.STUDIO
@@ -481,28 +477,37 @@ async def _preload_next(chat_id: int) -> None:
 
 
 async def play_next(chat_id: int) -> None:
+    old_track = None
     async with get_lock(chat_id):
         state = get_state(chat_id)
-        if state.current and os.path.exists(state.current.file_path):
-            try:
-                os.remove(state.current.file_path)
-            except OSError:
-                pass
+        if state.current:
+            old_track = state.current
             state.current = None
-            
+
         if not state.queue:
             state.is_playing = False
             state.is_paused = False
-            await bot_send(
-                chat_id,
-                "🔚 الطابور خلص.\nاكتب /play <اسم أغنية أو رابط> عشان نشغل حاجة تانية.",
-            )
-            return
-            
-        track = state.queue.pop(0)
-        state.current = track
-        state.is_playing = True
-        state.is_paused = False
+            # مسح الملف بره القفل عشان ميعملش Deadlock لو السطر ده شغال
+        else:
+            track = state.queue.pop(0)
+            state.current = track
+            state.is_playing = True
+            state.is_paused = False
+
+    # مسح ملف الأغنية القديمة بأمان بعد ما سحبناها من الحالة
+    if old_track and old_track.file_path and os.path.exists(old_track.file_path):
+        try:
+            os.remove(old_track.file_path)
+        except OSError:
+            pass
+
+    if not state.current:
+        await bot_send(
+            chat_id,
+            "🔚 الطابور خلص.\nاكتب /play <اسم أغنية أو رابط> عشان نشغل حاجة تانية.",
+        )
+        return
+        
 
     try:
         if not track.file_path or not os.path.exists(track.file_path):
@@ -979,32 +984,44 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         return
         
     if data == "player_pause_resume":
+        async with get_lock(chat_id):
+            try:
+                if state.is_playing:
+                    state.elapsed_time_before_pause += time.time() - state.playback_start_time
+                    await calls.pause(chat_id)
+                    state.is_playing = False
+                    state.is_paused = True
+                else:
+                    await calls.resume(chat_id)
+                    state.is_playing = True
+                    state.is_paused = False
+                    state.playback_start_time = time.time()
+            except Exception as e:
+                logger.warning("Pause/Resume error: %s", e)
         try:
-            if state.is_playing:
-                state.elapsed_time_before_pause += time.time() - state.playback_start_time
-                await calls.pause(chat_id)
-                state.is_playing = False
-                state.is_paused = True
-            else:
-                await calls.resume(chat_id)
-                state.is_playing = True
-                state.is_paused = False
-                state.playback_start_time = time.time()
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-        except Exception as e:
-            logger.warning("Pause/Resume error: %s", e)
+        except Exception:
+            pass
             
     elif data == "player_skip":
-        await query.edit_message_caption("⏭️ جاري التخطي...")
+        try:
+            await query.edit_message_caption("⏭️ جاري التخطي...")
+        except Exception:
+            pass
         asyncio.create_task(play_next(chat_id))
         
     elif data == "player_stop":
-        if not state.current:
-            try:
-                await calls.leave_call(chat_id)
-            except Exception:
-                pass
-            state.clear()
+        async with get_lock(chat_id):
+            if not state.current:
+                try:
+                    await calls.leave_call(chat_id)
+                except Exception:
+                    pass
+                state.clear()
+                empty = True
+            else:
+                empty = False
+        if empty:
             try:
                 await query.edit_message_caption("⏹️ مفيش حاجة شغالة، اتقفلت المكالمة واتنضفت.")
             except Exception:
@@ -1024,21 +1041,22 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
                 await query.edit_message_caption("⏩ جاري التقديم 10 ثواني...", reply_markup=get_player_buttons(state))
             except Exception:
                 pass
-            state.is_seeking = True
-            try:
-                await _start_playback(chat_id, state.current, start_time=new_time)
-                state.playback_start_time = time.time()
-                state.elapsed_time_before_pause = new_time
-                state.is_playing = True
-                state.is_paused = False
-            except Exception as e:
-                logger.warning("Seek forward failed: %s", e)
-                state.is_seeking = False
-                state.is_playing = False
-                state.current = None
+            # القفل هنا بيمنع إن اليوزر يدوس Seek تاني غيره ما يخلص
+            async with get_lock(chat_id):
+                state.is_seeking = True
+                try:
+                    await _start_playback(chat_id, state.current, start_time=new_time)
+                    state.playback_start_time = time.time()
+                    state.elapsed_time_before_pause = new_time
+                    state.is_playing = True
+                    state.is_paused = False
+                except Exception as e:
+                    logger.warning("Seek forward failed: %s", e)
+                    state.is_seeking = False
+                    state.is_playing = False
+                    state.current = None
             try:
                 await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-                
             except Exception:
                 pass
         else:
@@ -1054,23 +1072,24 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
             await query.edit_message_caption("⏪ جاري التأخير 10 ثواني...", reply_markup=get_player_buttons(state))
         except Exception:
             pass
-        state.is_seeking = True
-        try:
-            await _start_playback(chat_id, state.current, start_time=new_time)
-            state.playback_start_time = time.time()
-            state.elapsed_time_before_pause = new_time
-            state.is_playing = True
-            state.is_paused = False
-        except Exception as e:
-            logger.warning("Seek backward failed: %s", e)
-            state.is_seeking = False
-            state.is_playing = False
-            state.current = None
+        async with get_lock(chat_id):
+            state.is_seeking = True
+            try:
+                await _start_playback(chat_id, state.current, start_time=new_time)
+                state.playback_start_time = time.time()
+                state.elapsed_time_before_pause = new_time
+                state.is_playing = True
+                state.is_paused = False
+            except Exception as e:
+                logger.warning("Seek backward failed: %s", e)
+                state.is_seeking = False
+                state.is_playing = False
+                state.current = None
         try:
             await query.edit_message_reply_markup(reply_markup=get_player_buttons(state))
-            
         except Exception:
             pass
+            
 import json as _json
 
 async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1105,30 +1124,36 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.info(f"🎛️ {action_name} تم الضغط بواسطة: {user_name} في الشات {chat_id}")
         
     if action == "player_pause_resume":
-        try:
-            if state.is_playing:
-                state.elapsed_time_before_pause += time.time() - state.playback_start_time
-                await calls.pause(chat_id)
-                state.is_playing = False
-                state.is_paused = True
-            else:
-                await calls.resume(chat_id)
-                state.is_playing = True
-                state.is_paused = False
-                state.playback_start_time = time.time()
-        except Exception as e:
-            logger.warning("Pause/Resume error (webapp): %s", e)
+        async with get_lock(chat_id):
+            try:
+                if state.is_playing:
+                    state.elapsed_time_before_pause += time.time() - state.playback_start_time
+                    await calls.pause(chat_id)
+                    state.is_playing = False
+                    state.is_paused = True
+                else:
+                    await calls.resume(chat_id)
+                    state.is_playing = True
+                    state.is_paused = False
+                    state.playback_start_time = time.time()
+            except Exception as e:
+                logger.warning("Pause/Resume error (webapp): %s", e)
 
     elif action == "player_skip":
         asyncio.create_task(play_next(chat_id))
 
     elif action == "player_stop":
-        if not state.current:
-            try:
-                await calls.leave_call(chat_id)
-            except Exception:
-                pass
-            state.clear()
+        async with get_lock(chat_id):
+            if not state.current:
+                try:
+                    await calls.leave_call(chat_id)
+                except Exception:
+                    pass
+                state.clear()
+                empty = True
+            else:
+                empty = False
+        if empty:
             await bot_send(chat_id, "⏹️ مفيش حاجة شغالة، اتقفلت المكالمة واتنضفت.")
             return
         await bot_send(chat_id, "⏹️ وقفنا الأغنية دي وهنشغل اللي بعدها.")
@@ -1138,6 +1163,26 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
         new_time = int(current_elapsed) + 10
         if new_time < state.current.duration:
+            async with get_lock(chat_id):
+                state.is_seeking = True
+                try:
+                    await _start_playback(chat_id, state.current, start_time=new_time)
+                    state.playback_start_time = time.time()
+                    state.elapsed_time_before_pause = new_time
+                    state.is_playing = True
+                    state.is_paused = False
+                except Exception as e:
+                    logger.warning("Seek forward failed (webapp): %s", e)
+                    state.is_seeking = False
+                    state.is_playing = False
+                    state.current = None
+        else:
+            await bot_send(chat_id, "⚠️ وصلنا لنهاية الأغنية.")
+
+    elif action == "player_seek_back":
+        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
+        new_time = max(0, int(current_elapsed) - 10)
+        async with get_lock(chat_id):
             state.is_seeking = True
             try:
                 await _start_playback(chat_id, state.current, start_time=new_time)
@@ -1146,29 +1191,10 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 state.is_playing = True
                 state.is_paused = False
             except Exception as e:
-                logger.warning("Seek forward failed (webapp): %s", e)
+                logger.warning("Seek backward failed (webapp): %s", e)
                 state.is_seeking = False
                 state.is_playing = False
                 state.current = None
-        else:
-            
-            await bot_send(chat_id, "⚠️ وصلنا لنهاية الأغنية.")
-
-    elif action == "player_seek_back":
-        current_elapsed = state.elapsed_time_before_pause + (time.time() - state.playback_start_time if state.is_playing else 0)
-        new_time = max(0, int(current_elapsed) - 10)
-        state.is_seeking = True
-        try:
-            await _start_playback(chat_id, state.current, start_time=new_time)
-            state.playback_start_time = time.time()
-            state.elapsed_time_before_pause = new_time
-            state.is_playing = True
-            state.is_paused = False
-        except Exception as e:
-            logger.warning("Seek backward failed (webapp): %s", e)
-            state.is_seeking = False
-            state.is_playing = False
-            state.current = None
             
 # ============================================================
 # (9.6) Admin Panel Helpers
