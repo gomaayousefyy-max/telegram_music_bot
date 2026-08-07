@@ -414,8 +414,8 @@ async def _start_playback(chat_id: int, track: Track, start_time: int = 0) -> No
     # -threads 1: تقليل استهلاك المعالج ومنع التزاحم عشان مفيش تقطيع
     # ممنوع نستخدم -ac 2 -ar 48000 لأنها بتعمل كراش صامت مع ملفات SoundCloud المتجزئة
     # إضافة -c:a libopus -b:a 192k -vbr on: عشان يتعمل تشفير مرة واحدة بس بنقاء استوديو عالي من غير ما نأثر على السرعة
-    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero -c:a libopus -b:a 192k -vbr on"
-    
+    ffmpeg_params = f"{seek_param}-nostdin -threads 1 -vn -fflags +genpts+igndts -avoid_negative_ts make_zero"
+
     audio_quality = (
         AudioQuality.HIGH if Config.AUDIO_QUALITY == "high" else AudioQuality.STUDIO
     )
