@@ -787,10 +787,9 @@ async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         state.is_paused = True
         state.is_playing = False
         await update.message.reply_text("⏸️ الأغنية اتوقفت مؤقتاً. اكتب /resume عشان تكمل.")
-        
     except Exception as e:
         await update.message.reply_text(f"❌ {type(e).__name__}")
-
+        
 async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
@@ -804,10 +803,9 @@ async def resume_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # تصفير عداد وقت التشغيل عشان يبدأ يحسب من الأول بعد الاستكمال
         state.playback_start_time = time.time()
         await update.message.reply_text("▶️ كملنا التشغيل.")
-        
     except Exception as e:
         await update.message.reply_text(f"❌ {type(e).__name__}")
-
+        
 async def skip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     state = get_state(chat_id)
