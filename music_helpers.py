@@ -337,6 +337,9 @@ def search_and_download(query: str) -> list[dict]:
             if track_title:
                 logger.info("🔄 تم استخراج اسم الأغنية من سبوتفاي: %s", track_title)
                 query = track_title
+            else:
+                raise DownloadError("سبوتفاي رجع اسم أغنية فاضي، مش هقدر أكمل البحث.")
+                
         except Exception as e:
             logger.warning("فشل استخراج بيانات سبوتفاي: %s", e)
 
@@ -745,9 +748,16 @@ async def play_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             state.is_playing = False
             state.is_paused = False
             state.queue.insert(0, track)
-        logger.exception("Error in play_command for chat %s", chat_id)
         err_str = str(e)
         if "AUTH_KEY_DUPLICATED" in err_str or "AuthKeyDuplicated" in err_str:
+            logger.error("AuthKeyDuplicated in play_command for chat %s", chat_id)
+        elif "CHAT_ADMIN_REQUIRED" in err_str or "ChatAdminRequired" in err_str:
+            logger.warning("ChatAdminRequired in chat %s (User needs to promote the bot).", chat_id)
+        else:
+            logger.exception("Error in play_command for chat %s", chat_id)
+            
+        if "AUTH_KEY_DUPLICATED" in err_str or "AuthKeyDuplicated" in err_str:
+            
             await status.edit_text(
                 "🚫 الجلسة (SESSION_STRING) مستخدمة في أكتر من مكان في نفس الوقت.\n\n"
                 "الأسباب المحتملة:\n"
