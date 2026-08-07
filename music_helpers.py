@@ -953,7 +953,12 @@ async def player_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     }
     action_name = action_map.get(data)
     if action_name:
-        await context.bot.send_message(chat_id=chat_id, text=f"🎛️ {action_name} تم الضغط بواسطة: {user_name}")
+        try:
+            # استخدام answer بدلاً من send_message عشان نتجنب حظر Flood Control تماماً
+            await query.answer(text=f"🎛️ {action_name} تم الضغط بواسطة: {user_name}", show_alert=False)
+        except Exception:
+            pass
+            
         
     if not state.current:
         await query.edit_message_caption("⚠️ مفيش أغنية شغالة دلوقتي.", reply_markup=get_player_buttons(state))
@@ -1082,8 +1087,9 @@ async def web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     }
     action_name = action_map.get(action)
     if action_name:
-        await bot_send(chat_id, f"🎛️ {action_name} تم الضغط بواسطة: {user_name}")
-
+        # مفيش query.answer هنا لأنها WebApp، فهنسيبها تتحط كـ Console log فقط عشان نتجنب السبام
+        logger.info(f"🎛️ {action_name} تم الضغط بواسطة: {user_name} في الشات {chat_id}")
+        
     if action == "player_pause_resume":
         try:
             if state.is_playing:
